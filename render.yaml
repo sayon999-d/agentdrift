@@ -1,0 +1,36 @@
+# =============================================================================
+# Render infrastructure-as-code for the AgentDrift Cloud MCP server.
+# Connect the repo in Render (New -> Blueprint -> select this file), then set
+# the secrets below in the Render dashboard (they are sync:false on purpose —
+# values live in Render, never in git).
+# Required Render env vars (Dashboard -> Environment -> Environment Variables):
+#   SUPABASE_DATABASE_URL  direct Postgres URL, port 5432 (NOT the pooler URL)
+#   SUPABASE_JWT_SECRET     Auth -> Signer keys -> JWT Secret
+#   SUPABASE_URL            https://<project-ref>.supabase.co
+#   SUPABASE_ANON_KEY       Project API keys -> anon public
+# Optional: AGENTDRIFT_MCP_TOKEN (extra server-to-server token),
+#           AGENTDRIFT_REQUIRE_AUTH (defaults to enforced when secrets exist).
+# =============================================================================
+services:
+  - type: web
+    name: agentdrift-cloud-mcp
+    runtime: image
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: SUPABASE_DATABASE_URL
+        sync: false
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: AGENTDRIFT_MCP_TOKEN
+        sync: false
+      - key: AGENTDRIFT_REQUIRE_AUTH
+        value: "1"

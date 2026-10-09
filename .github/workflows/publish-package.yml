@@ -1,0 +1,87 @@
+# =============================================================================
+# AgentDrift — PyPI release workflow.
+# Trigger: push a tag like v0.1.0  (must match agentdrift.__version__).
+# Flow: lint + test -> build sdist/wheel -> trusted-publish to PyPI (OIDC,
+# no API tokens) -> attach dist/* to a GitHub Release with generated notes.
+# PyPI setup (one time): PyPI project settings -> Publishing -> add a
+# "GitHub" trusted publisher for this repo + the `pypi` environment below.
+# =============================================================================
+name: Publish agentdrift to PyPI
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write # needed to create the GitHub Release
+  id-token: write # needed for PyPI trusted (OIDC) publishing
+
+jobs:
+  build-test:
+    name: Lint, test, build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Verify tag matches package version
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG="$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml","rb"))["project"]["version"])')"
+          echo "tag=$TAG pyproject=$PKG"
+          if [ "$TAG" != "$PKG" ]; then
+            echo "::error::Tag v$TAG does not match pyproject version $PKG. Bump [project].version / agentdrift.__version__ first."
+            exit 1
+          fi
+
+      - name: Install package with dev extras
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Lint (ruff)
+        run: ruff check .
+
+      - name: Test (pytest)
+        run: python -m pytest tests/ -q
+
+      - name: Build sdist + wheel
+        run: |
+          pip install build
+          python -m build
+
+      - name: Upload dist artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/*
+
+  publish:
+    name: Publish to PyPI + GitHub Release
+    needs: build-test
+    runs-on: ubuntu-latest
+    environment: pypi # must match the trusted-publisher environment on PyPI
+    steps:
+      - name: Download dist artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      - name: Publish to PyPI (OIDC trusted publishing, no token)
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+      - name: Create GitHub Release with artifacts
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            dist/*.whl
+            dist/*.tar.gz

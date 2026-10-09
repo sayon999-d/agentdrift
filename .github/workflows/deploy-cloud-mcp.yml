@@ -1,0 +1,101 @@
+# =============================================================================
+# AgentDrift — Cloud MCP deployment workflow.
+# Trigger: push to main touching the cloud server, daemon, Dockerfile,
+# requirements, or migrations.
+# Flow: build multi-stage Docker image -> push to GHCR -> trigger Render
+# deploy hook -> poll /health until live (fails the run otherwise).
+#
+# Required GitHub Secrets (repo Settings -> Secrets and variables -> Actions):
+#   SUPABASE_DATABASE_URL, SUPABASE_JWT_SECRET, SUPABASE_URL, SUPABASE_ANON_KEY
+#   RENDER_DEPLOY_HOOK   Render service -> Settings -> Deploy Hook (full URL)
+#   APP_URL              public base URL, e.g. https://mcp.your-domain.com
+#                        (no trailing slash)
+# Fly.io / Railway alternative: `flyctl deploy --remote-only` /
+# `railway up --service agentdrift-cloud-mcp` with the same secrets — the
+# image built below (ghcr.io/.../agentdrift-cloud-mcp) is registry-ready.
+# =============================================================================
+name: Deploy Cloud MCP Server
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "agentdrift/mcp/**"
+      - "agentdrift/daemon/**"
+      - "Dockerfile"
+      - "render.yaml"
+      - "requirements.txt"
+      - "migrations/**"
+
+permissions:
+  contents: read
+  packages: write # push image to GHCR
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}/agentdrift-cloud-mcp
+
+jobs:
+  build-and-push:
+    name: Build + push image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ github.sha }}
+            ${{ env.IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy-render:
+    name: Deploy to Render + health check
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+      SUPABASE_JWT_SECRET: ${{ secrets.SUPABASE_JWT_SECRET }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+    steps:
+      - name: Trigger Render deploy hook
+        run: |
+          if [ -z "${{ secrets.RENDER_DEPLOY_HOOK }}" ]; then
+            echo "::error::RENDER_DEPLOY_HOOK secret is not set."
+            exit 1
+          fi
+          curl -fsS -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"
+
+      - name: Poll /health until live (10 x 30s)
+        run: |
+          if [ -z "${{ secrets.APP_URL }}" ]; then
+            echo "::error::APP_URL secret is not set (e.g. https://mcp.your-domain.com)."
+            exit 1
+          fi
+          for i in $(seq 1 10); do
+            if curl -fsS "${{ secrets.APP_URL }}/health"; then
+              echo ""
+              echo "Cloud MCP is live at ${{ secrets.APP_URL }}"
+              exit 0
+            fi
+            echo "attempt $i/10: not ready yet, waiting 30s…"
+            sleep 30
+          done
+          echo "::error::/health never returned 200 after 5 minutes."
+          exit 1
