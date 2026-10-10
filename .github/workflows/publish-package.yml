@@ -1,21 +1,13 @@
-# =============================================================================
-# AgentDrift — PyPI release workflow.
-# Trigger: push a tag like v0.1.0  (must match agentdrift.__version__).
-# Flow: lint + test -> build sdist/wheel -> trusted-publish to PyPI (OIDC,
-# no API tokens) -> attach dist/* to a GitHub Release with generated notes.
-# PyPI setup (one time): PyPI project settings -> Publishing -> add a
-# "GitHub" trusted publisher for this repo + the `pypi` environment below.
-# =============================================================================
 name: Publish agentdrift to PyPI
 
 on:
   push:
     tags:
       - "v*"
+  workflow_dispatch: # Allows manual trigger from the GitHub Actions tab
 
 permissions:
-  contents: write # needed to create the GitHub Release
-  id-token: write # needed for PyPI trusted (OIDC) publishing
+  contents: write # Needed to create the GitHub Release
 
 jobs:
   build-test:
@@ -67,7 +59,6 @@ jobs:
     name: Publish to PyPI + GitHub Release
     needs: build-test
     runs-on: ubuntu-latest
-    environment: pypi # must match the trusted-publisher environment on PyPI
     steps:
       - name: Download dist artifacts
         uses: actions/download-artifact@v4
@@ -75,8 +66,11 @@ jobs:
           name: dist
           path: dist
 
-      - name: Publish to PyPI (OIDC trusted publishing, no token)
+      - name: Publish to PyPI with API Token
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          skip-existing: true
 
       - name: Create GitHub Release with artifacts
         uses: softprops/action-gh-release@v2

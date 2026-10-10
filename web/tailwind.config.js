@@ -1,17 +1,64 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: ['./index.html', './src/**/*.{ts,tsx}'],
+  darkMode: ["class"],
+  content: ["./index.html", "./src/**/*.{ts,tsx}"],
   theme: {
+    container: { center: true, padding: "2rem", screens: { "2xl": "1400px" } },
     extend: {
       colors: {
-        ink: '#08080a',
-        peony: '#ff2a4b',
-        signal: '#00f0ff',
-        phosphor: '#4a5568',
+        // Elite dark-mode terminal — deep void blacks, zinc text, crimson accent
+        void: "#040608",
+        ink: "#0a0a0f",
+        terminal: "#09090b",
+        crimson: {
+          DEFAULT: "#ff2a4b",
+          dim: "#c81535",
+        },
+        border: "hsl(var(--border))",
+        input: "hsl(var(--input))",
+        ring: "hsl(var(--ring))",
+        background: "hsl(var(--background))",
+        foreground: "hsl(var(--foreground))",
+        primary: {
+          DEFAULT: "hsl(var(--primary))",
+          foreground: "hsl(var(--primary-foreground))",
+        },
+        secondary: {
+          DEFAULT: "hsl(var(--secondary))",
+          foreground: "hsl(var(--secondary-foreground))",
+        },
+        muted: {
+          DEFAULT: "hsl(var(--muted))",
+          foreground: "hsl(var(--muted-foreground))",
+        },
+        accent: {
+          DEFAULT: "hsl(var(--accent))",
+          foreground: "hsl(var(--accent-foreground))",
+        },
+        card: {
+          DEFAULT: "hsl(var(--card))",
+          foreground: "hsl(var(--card-foreground))",
+        },
       },
       fontFamily: {
-        mono: ['DM Mono', 'monospace'],
-        display: ['Space Grotesk', 'sans-serif'],
+        mono: ["'JetBrains Mono'", "'Geist Mono'", "'Fira Code'", "ui-monospace", "monospace"],
+        display: ["'Geist'", "'Inter'", "-apple-system", "sans-serif"],
+        sans: ["'Geist'", "'Inter'", "-apple-system", "sans-serif"],
+      },
+      borderRadius: {
+        lg: "var(--radius)",
+        md: "calc(var(--radius) - 2px)",
+        sm: "calc(var(--radius) - 4px)",
+      },
+      keyframes: {
+        blink: { "50%": { opacity: "0.25" } },
+        "signal-drift": {
+          "0%": { backgroundPosition: "0 0, 0 0" },
+          "100%": { backgroundPosition: "0 14px, 6px 0" },
+        },
+      },
+      animation: {
+        blink: "blink 0.9s steps(1) infinite",
       },
     },
   },

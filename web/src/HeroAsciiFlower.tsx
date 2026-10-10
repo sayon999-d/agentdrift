@@ -28,7 +28,7 @@ export default function HeroAsciiFlower() {
       canvas.width = width
       canvas.height = height
       ctx.setTransform(1, 0, 0, 1, 0, 0)
-      ctx.fillStyle = '#08080a'
+      ctx.fillStyle = '#000000'
       ctx.fillRect(0, 0, width, height)
       if (!source.complete || !source.naturalWidth) return
       const ratio = Math.max(width / source.naturalWidth, height / source.naturalHeight)
@@ -54,7 +54,7 @@ export default function HeroAsciiFlower() {
       const split = Math.floor(height * 0.49)
       const px = pointer.current.x * (window.devicePixelRatio || 1)
       const py = pointer.current.y * (window.devicePixelRatio || 1)
-      ctx.font = `${cellY}px 'DM Mono', monospace`
+      ctx.font = `${cellY}px 'JetBrains Mono', 'Geist Mono', monospace`
       ctx.textBaseline = 'top'
 
       for (let y = 0; y < split; y += cellY) {
@@ -71,8 +71,8 @@ export default function HeroAsciiFlower() {
           const drift = near ? Math.sin(frameRef.current * 0.13 + x) * cellX * 0.36 : 0
           const glyphIndex = Math.min(GLYPHS.length - 1, Math.floor((1 - light) * GLYPHS.length))
           const color = near
-            ? (x + y) % 2 ? 'rgba(0,240,255,.92)' : 'rgba(255,42,75,.96)'
-            : `rgba(${Math.min(255, red + 22)},${Math.max(25, green - 8)},${Math.min(255, blue + 20)},${Math.min(.92, .16 + light * .96)})`
+            ? 'rgba(255,255,255,.96)'
+            : `rgba(${Math.min(255, red + 22)},${Math.min(255, red + 22)},${Math.min(255, blue + 20)},${Math.min(.92, .16 + light * .96)})`
           ctx.fillStyle = color
           ctx.fillText(GLYPHS[glyphIndex], x + drift, y)
         }
@@ -110,8 +110,8 @@ export default function HeroAsciiFlower() {
   }, [])
 
   return (
-    <div className="flower-frame" aria-label="A glowing red peony reflected as a cyan and crimson terminal matrix">
-      <img src="/hero-flower.svg" className="flower-underlay" alt="Glowing crimson flower with a fragmented scanline reflection" />
+    <div className="flower-frame" aria-label="A monochrome botanical plate rendered as a grayscale terminal matrix">
+      <img src="/hero-flower.svg" className="flower-underlay" alt="Monochrome botanical plate with scanline reflection" />
       <canvas ref={canvasRef} className="flower-canvas" aria-hidden="true" />
       <div className="flower-scanlines" aria-hidden="true" />
       <div className="flower-stamp"><span>FIG. 01</span><span>STATE / BLOOM</span><span>384D</span></div>
