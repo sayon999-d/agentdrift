@@ -19,7 +19,6 @@ import time
 import uuid
 from collections import deque
 from datetime import datetime
-from typing import Deque, Optional
 
 import requests
 import typer
@@ -42,18 +41,22 @@ console = Console()
 # HTTP helpers (no tracebacks on connection failure)
 # ---------------------------------------------------------------------------
 
+
 def _get(path: str) -> dict | list:
     try:
         r = requests.get(f"{DAEMON}{path}", timeout=TIMEOUT)
         r.raise_for_status()
         return r.json()
     except requests.ConnectionError:
-        console.print(Panel(
-            f"[bold]Daemon offline[/bold] at {DAEMON}\n"
-            "Start it with:\n"
-            "  [cyan]uvicorn app.main:app --port 8901 --reload --reload-dir app[/cyan]",
-            title="Connection failed", style="red",
-        ))
+        console.print(
+            Panel(
+                f"[bold]Daemon offline[/bold] at {DAEMON}\n"
+                "Start it with:\n"
+                "  [cyan]uvicorn app.main:app --port 8901 --reload --reload-dir app[/cyan]",
+                title="Connection failed",
+                style="red",
+            )
+        )
         raise typer.Exit(1)
     except requests.Timeout:
         console.print(Panel(f"Daemon at {DAEMON} timed out on GET {path}.", style="red"))
@@ -69,12 +72,15 @@ def _post(path: str, payload: object) -> dict | list:
         r.raise_for_status()
         return r.json()
     except requests.ConnectionError:
-        console.print(Panel(
-            f"[bold]Daemon offline[/bold] at {DAEMON}\n"
-            "Start it with:\n"
-            "  [cyan]uvicorn app.main:app --port 8901 --reload --reload-dir app[/cyan]",
-            title="Connection failed", style="red",
-        ))
+        console.print(
+            Panel(
+                f"[bold]Daemon offline[/bold] at {DAEMON}\n"
+                "Start it with:\n"
+                "  [cyan]uvicorn app.main:app --port 8901 --reload --reload-dir app[/cyan]",
+                title="Connection failed",
+                style="red",
+            )
+        )
         raise typer.Exit(1)
     except requests.Timeout:
         console.print(Panel(f"Daemon at {DAEMON} timed out on POST {path}.", style="red"))
@@ -104,6 +110,7 @@ def _fetch_stats() -> dict:
 # ---------------------------------------------------------------------------
 # Commands
 # ---------------------------------------------------------------------------
+
 
 @app.command()
 def health() -> None:
@@ -139,17 +146,23 @@ def scan(threshold: float = typer.Option(0.92, help="Loop similarity threshold."
     detections = int(data.get("detections", 0) or 0)
     thr = data.get("threshold", threshold)
     if detections > 0:
-        console.print(Panel(
-            f"[bold]Ping-pong loop detected[/bold]\n"
-            f"Detections: [bold red]{detections}[/bold red]\n"
-            f"Threshold: {thr}",
-            title="Sentinel scan", style="red",
-        ))
+        console.print(
+            Panel(
+                f"[bold]Ping-pong loop detected[/bold]\n"
+                f"Detections: [bold red]{detections}[/bold red]\n"
+                f"Threshold: {thr}",
+                title="Sentinel scan",
+                style="red",
+            )
+        )
     else:
-        console.print(Panel(
-            f"[bold]No loops found[/bold]\nThreshold: {thr}",
-            title="Sentinel scan", style="green",
-        ))
+        console.print(
+            Panel(
+                f"[bold]No loops found[/bold]\nThreshold: {thr}",
+                title="Sentinel scan",
+                style="green",
+            )
+        )
     loops = data.get("loops") or []
     if loops:
         table = Table(title="Loops", box=box.ROUNDED)
@@ -251,14 +264,14 @@ def evaluate(
 
 @app.command()
 def watch(
-    session_id: Optional[str] = typer.Option(None, "--session-id", help="Only tail this session."),
+    session_id: str | None = typer.Option(None, "--session-id", help="Only tail this session."),
     interval: float = typer.Option(1.0, "--interval", help="Polling interval in seconds."),
     threshold: float = typer.Option(0.92, "--threshold", help="Loop similarity threshold."),
     bell: bool = typer.Option(True, "--bell/--no-bell", help="Terminal bell when drift triggers."),
 ) -> None:
     """Live-tail executions with terminal alerts when drift occurs."""
     interval = min(max(interval, 0.2), 30.0)
-    stream: Deque[Text] = deque(maxlen=15)
+    stream: deque[Text] = deque(maxlen=15)
     seen_exe: set[str] = set()
     known_loops: set[tuple[str, str]] = set()
     last_alert: str | None = None
@@ -272,10 +285,13 @@ def watch(
         Layout(name="alert", size=7),
     )
     filt = session_id or "all sessions"
-    layout["header"].update(Panel(
-        f"Daemon: {DAEMON}  •  filter: {filt}  •  every {interval:g}s  •  threshold {threshold}  •  Ctrl+C to stop",
-        title="agentdrift watch", style="cyan",
-    ))
+    layout["header"].update(
+        Panel(
+            f"Daemon: {DAEMON}  •  filter: {filt}  •  every {interval:g}s  •  threshold {threshold}  •  Ctrl+C to stop",
+            title="agentdrift watch",
+            style="cyan",
+        )
+    )
     layout["stream"].update(Panel("Waiting for executions…", title="Execution stream"))
     layout["alert"].update(Panel("No drift detected.", title="Alerts", style="dim"))
 
@@ -284,7 +300,9 @@ def watch(
             if method == "GET":
                 r = requests.get(f"{DAEMON}{path}", timeout=min(TIMEOUT, interval + 5))
             else:
-                r = requests.post(f"{DAEMON}{path}", json=payload, timeout=min(TIMEOUT, interval + 5))
+                r = requests.post(
+                    f"{DAEMON}{path}", json=payload, timeout=min(TIMEOUT, interval + 5)
+                )
             r.raise_for_status()
             return r.json()
         except requests.RequestException:
@@ -297,7 +315,9 @@ def watch(
         )
         layout["stream"].update(stream_panel)
         if last_alert:
-            layout["alert"].update(Panel(last_alert, title=f"Alerts ({alert_count})", style="bold red"))
+            layout["alert"].update(
+                Panel(last_alert, title=f"Alerts ({alert_count})", style="bold red")
+            )
         return layout
 
     try:
@@ -308,21 +328,29 @@ def watch(
                     if online:
                         online = False
                         stream.append(Text("connection lost — retrying…", style="yellow"))
-                    layout["header"].update(Panel(
-                        f"Daemon: {DAEMON}  •  OFFLINE, retrying every {interval:g}s  •  Ctrl+C to stop",
-                        title="agentdrift watch", style="red",
-                    ))
+                    layout["header"].update(
+                        Panel(
+                            f"Daemon: {DAEMON}  •  OFFLINE, retrying every {interval:g}s  •  Ctrl+C to stop",
+                            title="agentdrift watch",
+                            style="red",
+                        )
+                    )
                     live.update(render())
                     time.sleep(interval)
                     continue
                 online = True
-                layout["header"].update(Panel(
-                    f"Daemon: {DAEMON}  •  filter: {filt}  •  every {interval:g}s"
-                    f"  •  threshold {threshold}  •  alerts {alert_count}  •  Ctrl+C to stop",
-                    title="agentdrift watch", style="cyan",
-                ))
+                layout["header"].update(
+                    Panel(
+                        f"Daemon: {DAEMON}  •  filter: {filt}  •  every {interval:g}s"
+                        f"  •  threshold {threshold}  •  alerts {alert_count}  •  Ctrl+C to stop",
+                        title="agentdrift watch",
+                        style="cyan",
+                    )
+                )
                 if isinstance(exes, list):
-                    ordered = sorted(exes, key=lambda e: (e.get("sequence", 0) if isinstance(e, dict) else 0))
+                    ordered = sorted(
+                        exes, key=lambda e: e.get("sequence", 0) if isinstance(e, dict) else 0
+                    )
                     for exe in ordered:
                         if not isinstance(exe, dict):
                             continue
@@ -332,12 +360,14 @@ def watch(
                         if not eid or eid in seen_exe:
                             continue
                         seen_exe.add(eid)
-                        stream.append(Text.from_markup(
-                            f"[dim]{_short_time(exe.get('created_at'))}[/dim] "
-                            f"[bold]\\[seq {exe.get('sequence', '?')}] "
-                            f"{exe.get('agent_id', '?')}:{exe.get('node_id', '?')}[/bold]"
-                            f" -> {_summarize_payload(exe)}"
-                        ))
+                        stream.append(
+                            Text.from_markup(
+                                f"[dim]{_short_time(exe.get('created_at'))}[/dim] "
+                                f"[bold]\\[seq {exe.get('sequence', '?')}] "
+                                f"{exe.get('agent_id', '?')}:{exe.get('node_id', '?')}[/bold]"
+                                f" -> {_summarize_payload(exe)}"
+                            )
+                        )
 
                 scan = poll_json("POST", "/v1/sentinel/scan", {"threshold": threshold})
                 loops: list = []
@@ -353,12 +383,14 @@ def watch(
                                 continue
                             if session_id and d.get("session_id") != session_id:
                                 continue
-                            loops.append({
-                                "session_id": d.get("session_id"),
-                                "execution_id": d.get("execution_id"),
-                                "prior_execution_id": d.get("prior_execution_id"),
-                                "similarity": d.get("similarity"),
-                            })
+                            loops.append(
+                                {
+                                    "session_id": d.get("session_id"),
+                                    "execution_id": d.get("execution_id"),
+                                    "prior_execution_id": d.get("prior_execution_id"),
+                                    "similarity": d.get("similarity"),
+                                }
+                            )
                 for loop in loops:
                     key = (str(loop.get("session_id")), str(loop.get("execution_id")))
                     if key in known_loops:
@@ -387,7 +419,11 @@ def _short_time(value: object) -> str:
     """Format an ISO timestamp as HH:MM:SS; fall back to now."""
     if isinstance(value, str) and value:
         try:
-            return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone().strftime("%H:%M:%S")
+            return (
+                datetime.fromisoformat(value.replace("Z", "+00:00"))
+                .astimezone()
+                .strftime("%H:%M:%S")
+            )
         except ValueError:
             pass
     return datetime.now().strftime("%H:%M:%S")
@@ -399,7 +435,11 @@ def _summarize_payload(exe: dict, width: int = 100) -> str:
         payload = exe.get(key)
         if payload:
             try:
-                text = payload if isinstance(payload, str) else json.dumps(payload, sort_keys=True, default=str)
+                text = (
+                    payload
+                    if isinstance(payload, str)
+                    else json.dumps(payload, sort_keys=True, default=str)
+                )
             except (TypeError, ValueError):
                 text = str(payload)
             text = " ".join(text.split())
@@ -434,14 +474,21 @@ def test_all() -> None:
     ingest_detail = ""
     for i in range(2):
         try:
-            res = _post("/v1/ingest", {"executions": [{
-                "session_id": session_id,
-                "agent_id": "cli-e2e-agent",
-                "node_id": "e2e-node",
-                "input_payload": {"goal": "cli e2e loop check"},
-                "output_payload": event_payload,
-                "state_hash": ping_hash,
-            }]})
+            res = _post(
+                "/v1/ingest",
+                {
+                    "executions": [
+                        {
+                            "session_id": session_id,
+                            "agent_id": "cli-e2e-agent",
+                            "node_id": "e2e-node",
+                            "input_payload": {"goal": "cli e2e loop check"},
+                            "output_payload": event_payload,
+                            "state_hash": ping_hash,
+                        }
+                    ]
+                },
+            )
             if not (isinstance(res, dict) and res.get("persisted", 0) >= 1):
                 ingest_ok = False
                 ingest_detail = repr(res)[:120]
@@ -461,11 +508,16 @@ def test_all() -> None:
 
     # 4. NLI evaluate scoring
     try:
-        e = _post("/v1/evaluate", [{
-            "id": "cli-e2e-nli",
-            "premise": "the cat sits on the mat",
-            "hypothesis": "the cat sits on the mat",
-        }])
+        e = _post(
+            "/v1/evaluate",
+            [
+                {
+                    "id": "cli-e2e-nli",
+                    "premise": "the cat sits on the mat",
+                    "hypothesis": "the cat sits on the mat",
+                }
+            ],
+        )
         results = e.get("results", []) if isinstance(e, dict) else []
         nli_ok = bool(results) and all(
             all(k in r for k in ("entailment", "neutral", "contradiction", "label", "margin"))

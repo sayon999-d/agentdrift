@@ -70,7 +70,11 @@ class ExecutionOut(BaseModel):
 
 # --- Drift ---
 DriftKind = Literal[
-    "semantic_drift", "state_drift", "logical_drift", "schema_drift", "no_drift",
+    "semantic_drift",
+    "state_drift",
+    "logical_drift",
+    "schema_drift",
+    "no_drift",
 ]
 
 

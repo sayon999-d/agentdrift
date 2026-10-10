@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import JSON, DateTime, Float, ForeignKey, Integer, String, Text, func
+from sqlalchemy import JSON, DateTime, Float, ForeignKey, Integer, Text, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -38,7 +38,9 @@ class AgentExecution(Base):
     __tablename__ = "agent_executions"
 
     execution_id: Mapped[str] = mapped_column(Text, primary_key=True)
-    session_id: Mapped[str] = mapped_column(Text, ForeignKey("agent_sessions.session_id", ondelete="CASCADE"))
+    session_id: Mapped[str] = mapped_column(
+        Text, ForeignKey("agent_sessions.session_id", ondelete="CASCADE")
+    )
     parent_execution_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     agent_id: Mapped[str] = mapped_column(Text, nullable=False)
     node_id: Mapped[str] = mapped_column(Text, nullable=False)
@@ -57,7 +59,9 @@ class AgentExecution(Base):
 class DriftDetection(Base):
     __tablename__ = "drift_detections"
 
-    detection_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    detection_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
     session_id: Mapped[str] = mapped_column(Text, nullable=False)
     execution_id: Mapped[str] = mapped_column(Text, nullable=False)
     prior_execution_id: Mapped[str | None] = mapped_column(Text, nullable=True)

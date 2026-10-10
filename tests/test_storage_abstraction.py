@@ -33,10 +33,12 @@ def test_factory_selects_supabase_without_connecting(monkeypatch):
 async def test_local_record_list_and_drift():
     store = LocalHybridStore()
     sid = "storage-abstract-test"
-    await store.record_execution(sid, "agent-x", "node-a",
-                                 {"output": "repeat this"}, "thinking a", None)
-    await store.record_execution(sid, "agent-x", "node-a",
-                                 {"output": "repeat this"}, "thinking a", None)
+    await store.record_execution(
+        sid, "agent-x", "node-a", {"output": "repeat this"}, "thinking a", None
+    )
+    await store.record_execution(
+        sid, "agent-x", "node-a", {"output": "repeat this"}, "thinking a", None
+    )
     recent = await store.list_recent_executions(sid, limit=50)
     assert len(recent) == 2
     assert recent[0]["sequence"] >= recent[1]["sequence"]  # newest first
@@ -54,14 +56,20 @@ async def test_mcp_tools_end_to_end():
     mcp = create_mcp(LocalHybridStore())
     async with Client(mcp) as client:
         names = {t.name for t in await client.list_tools()}
-        assert {"record_execution", "check_drift", "list_recent_executions",
-                "get_health"} <= names
+        assert {"record_execution", "check_drift", "list_recent_executions", "get_health"} <= names
         health = (await client.call_tool("get_health", {})).data
         assert health["status"] == "ok" and health["backend"] == "local-hybrid"
-        rec = (await client.call_tool("record_execution", {
-            "session_id": "mcp-e2e", "agent_id": "agent-mcp",
-            "node_id": "n1", "payload": {"v": 1}})).data
+        rec = (
+            await client.call_tool(
+                "record_execution",
+                {
+                    "session_id": "mcp-e2e",
+                    "agent_id": "agent-mcp",
+                    "node_id": "n1",
+                    "payload": {"v": 1},
+                },
+            )
+        ).data
         assert rec["session_id"] == "mcp-e2e"
-        recent = (await client.call_tool(
-            "list_recent_executions", {"session_id": "mcp-e2e"})).data
+        recent = (await client.call_tool("list_recent_executions", {"session_id": "mcp-e2e"})).data
         assert isinstance(recent, list) and len(recent) >= 1

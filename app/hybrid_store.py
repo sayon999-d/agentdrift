@@ -22,7 +22,7 @@ import sqlite3
 import threading
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 log = logging.getLogger("agentdrift.hybrid")
@@ -104,7 +104,7 @@ def _jloads(text, default):
 
 
 def _ts(dt: float | None) -> datetime | None:
-    return datetime.fromtimestamp(dt, tz=timezone.utc) if dt is not None else None
+    return datetime.fromtimestamp(dt, tz=UTC) if dt is not None else None
 
 
 class HybridStore:
@@ -122,11 +122,13 @@ class HybridStore:
         with self._lock:
             self._sql.executescript(DDL)
             self._sql.commit()
-        schema = pa.schema([
-            ("execution_id", pa.string()),
-            ("session_id", pa.string()),
-            ("vector", pa.list_(pa.float32(), EMBEDDING_DIM)),
-        ])
+        schema = pa.schema(
+            [
+                ("execution_id", pa.string()),
+                ("session_id", pa.string()),
+                ("vector", pa.list_(pa.float32(), EMBEDDING_DIM)),
+            ]
+        )
         lance_db = lancedb.connect(str(self.vectors_path))
         try:
             self._vectors = lance_db.open_table(VECTOR_TABLE)
@@ -217,17 +219,25 @@ class HybridStore:
             self._execute(
                 "INSERT INTO sessions(session_id, agent_id, status, metadata, created_at)"
                 " VALUES(?,?,?,?,?)",
-                (sid, data["agent_id"], data.get("status", "active"),
-                 _jdumps(data.get("metadata", {})), now),
+                (
+                    sid,
+                    data["agent_id"],
+                    data.get("status", "active"),
+                    _jdumps(data.get("metadata", {})),
+                    now,
+                ),
             )
             return self._session_out(
-                self._fetchone("SELECT * FROM sessions WHERE session_id=?", (sid,)))
+                self._fetchone("SELECT * FROM sessions WHERE session_id=?", (sid,))
+            )
+
         return await asyncio.to_thread(_op)
 
     async def get_session(self, session_id: str) -> dict | None:
         def _op():
             row = self._fetchone("SELECT * FROM sessions WHERE session_id=?", (session_id,))
             return self._session_out(row) if row else None
+
         return await asyncio.to_thread(_op)
 
     async def ensure_session(self, session_id: str, agent_id: str = "unknown") -> dict:
@@ -243,8 +253,10 @@ class HybridStore:
         def _op():
             total = self._fetchone("SELECT COUNT(*) AS n FROM sessions")["n"]
             rows = self._fetchall(
-                "SELECT * FROM sessions ORDER BY created_at DESC LIMIT ? OFFSET ?", (limit, offset))
+                "SELECT * FROM sessions ORDER BY created_at DESC LIMIT ? OFFSET ?", (limit, offset)
+            )
             return [self._session_out(r) for r in rows], total
+
         return await asyncio.to_thread(_op)
 
     async def update_session(self, session_id: str, patch: dict) -> dict | None:
@@ -252,13 +264,18 @@ class HybridStore:
             if not self._fetchone("SELECT 1 FROM sessions WHERE session_id=?", (session_id,)):
                 return None
             if patch.get("status"):
-                self._execute("UPDATE sessions SET status=? WHERE session_id=?",
-                              (patch["status"], session_id))
+                self._execute(
+                    "UPDATE sessions SET status=? WHERE session_id=?", (patch["status"], session_id)
+                )
             if patch.get("metadata") is not None:
-                self._execute("UPDATE sessions SET metadata=? WHERE session_id=?",
-                              (_jdumps(patch["metadata"]), session_id))
+                self._execute(
+                    "UPDATE sessions SET metadata=? WHERE session_id=?",
+                    (_jdumps(patch["metadata"]), session_id),
+                )
             return self._session_out(
-                self._fetchone("SELECT * FROM sessions WHERE session_id=?", (session_id,)))
+                self._fetchone("SELECT * FROM sessions WHERE session_id=?", (session_id,))
+            )
+
         return await asyncio.to_thread(_op)
 
     # -- vectors --------------------------------------------------------------
@@ -269,12 +286,22 @@ class HybridStore:
                 self._vectors.delete(f"execution_id = '{execution_id}'")
             except Exception:
                 pass
-            self._vectors.add([{
-                "execution_id": execution_id, "session_id": session_id, "vector": vec,
-            }])
+            self._vectors.add(
+                [
+                    {
+                        "execution_id": execution_id,
+                        "session_id": session_id,
+                        "vector": vec,
+                    }
+                ]
+            )
 
     def _cosine_via_search(
-        self, session_id: str, query_vec: list[float], target_id: str, limit: int = 2000,
+        self,
+        session_id: str,
+        query_vec: list[float],
+        target_id: str,
+        limit: int = 2000,
     ) -> float | None:
         """Cosine similarity from LanceDB vector search (1 - cosine distance)."""
         safe_sid = session_id.replace("'", "")
@@ -303,6 +330,7 @@ class HybridStore:
         """Fallback: exact cosine over vectors fetched from LanceDB."""
         try:
             from app.embeddings import get_embedding_service
+
             svc = get_embedding_service()
             with self._lock:
                 try:
@@ -318,40 +346,52 @@ class HybridStore:
         except Exception:
             return None
 
-    async def pair_similarity(self, session_id: str, id_a: str, id_b: str,
-                              query_vec: list[float] | None = None) -> float | None:
+    async def pair_similarity(
+        self, session_id: str, id_a: str, id_b: str, query_vec: list[float] | None = None
+    ) -> float | None:
         """Similarity between two stored executions, preferring vector search."""
+
         def _op():
             if query_vec is not None:
                 sim = self._cosine_via_search(session_id, query_vec, id_a)
                 if sim is not None:
                     return sim
             return self._local_cosine(session_id, id_a, id_b)
+
         return await asyncio.to_thread(_op)
 
     # -- executions -------------------------------------------------------------
-    async def ingest_execution(self, data: dict, threshold: float | None = None) -> tuple[dict, dict | None]:
+    async def ingest_execution(
+        self, data: dict, threshold: float | None = None
+    ) -> tuple[dict, dict | None]:
         from app.drift import decide_drift
         from app.embeddings import get_embedding_service
 
         def _insert_seq() -> tuple[int, str, dict | None]:
-            if not self._fetchone("SELECT 1 FROM sessions WHERE session_id=?", (data["session_id"],)):
+            if not self._fetchone(
+                "SELECT 1 FROM sessions WHERE session_id=?", (data["session_id"],)
+            ):
                 raise KeyError("session not found")
             seq = data.get("sequence")
             if seq is None:
-                row = self._fetchone("SELECT MAX(sequence) AS m FROM executions WHERE session_id=?",
-                                     (data["session_id"],))
+                row = self._fetchone(
+                    "SELECT MAX(sequence) AS m FROM executions WHERE session_id=?",
+                    (data["session_id"],),
+                )
                 seq = (row["m"] + 1) if row and row["m"] is not None else 1
             prior = self._fetchone(
                 "SELECT * FROM executions WHERE session_id=? AND sequence<?"
-                " ORDER BY sequence DESC LIMIT 1", (data["session_id"], seq))
+                " ORDER BY sequence DESC LIMIT 1",
+                (data["session_id"], seq),
+            )
             eid = data.get("execution_id") or f"exec_{uuid.uuid4().hex[:12]}"
             return seq, eid, prior
 
         seq, eid, prior_row = await asyncio.to_thread(_insert_seq)
         svc = get_embedding_service()
         cur_vec = await asyncio.to_thread(
-            svc.embed_payload, data.get("input_payload"), data.get("output_payload"))
+            svc.embed_payload, data.get("input_payload"), data.get("output_payload")
+        )
         prior = self._execution_out(prior_row) if prior_row else None
         current = {**data, "execution_id": eid, "sequence": seq, "payload_embedding": cur_vec}
         decision = decide_drift(prior=prior, current=current, threshold=threshold)
@@ -364,11 +404,20 @@ class HybridStore:
                 " agent_id, node_id, sequence, status, input_payload, output_payload,"
                 " thinking_trace, state_hash, created_at)"
                 " VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
-                (eid, data["session_id"], data.get("parent_execution_id"),
-                 data["agent_id"], data.get("node_id", "default"), seq,
-                 data.get("status", "ok"), _jdumps(data.get("input_payload", {})),
-                 _jdumps(data.get("output_payload", {})), _jdumps(data.get("thinking_trace")),
-                 data.get("state_hash"), now),
+                (
+                    eid,
+                    data["session_id"],
+                    data.get("parent_execution_id"),
+                    data["agent_id"],
+                    data.get("node_id", "default"),
+                    seq,
+                    data.get("status", "ok"),
+                    _jdumps(data.get("input_payload", {})),
+                    _jdumps(data.get("output_payload", {})),
+                    _jdumps(data.get("thinking_trace")),
+                    data.get("state_hash"),
+                    now,
+                ),
             )
             det = None
             if decision["kind"] != "no_drift":
@@ -377,15 +426,25 @@ class HybridStore:
                     "INSERT INTO drift_detections(detection_id, session_id, execution_id,"
                     " prior_execution_id, kind, agent_id, similarity, threshold, evidence, created_at)"
                     " VALUES(?,?,?,?,?,?,?,?,?,?)",
-                    (did, data["session_id"], eid,
-                     prior["execution_id"] if prior else None, decision["kind"],
-                     data["agent_id"], decision["similarity"], decision["threshold"],
-                     _jdumps(decision["evidence"]), now),
+                    (
+                        did,
+                        data["session_id"],
+                        eid,
+                        prior["execution_id"] if prior else None,
+                        decision["kind"],
+                        data["agent_id"],
+                        decision["similarity"],
+                        decision["threshold"],
+                        _jdumps(decision["evidence"]),
+                        now,
+                    ),
                 )
-                det = self._detection_out(self._fetchone(
-                    "SELECT * FROM drift_detections WHERE detection_id=?", (did,)))
-            out = self._execution_out(self._fetchone(
-                "SELECT * FROM executions WHERE execution_id=?", (eid,)))
+                det = self._detection_out(
+                    self._fetchone("SELECT * FROM drift_detections WHERE detection_id=?", (did,))
+                )
+            out = self._execution_out(
+                self._fetchone("SELECT * FROM executions WHERE execution_id=?", (eid,))
+            )
             out["payload_embedding"] = cur_vec
             return out, det
 
@@ -393,49 +452,83 @@ class HybridStore:
         await asyncio.to_thread(self._store_vector_sync, eid, data["session_id"], cur_vec)
         return out, det
 
-    async def list_executions(self, session_id: str | None = None, limit: int = 200, offset: int = 0):
+    async def list_executions(
+        self, session_id: str | None = None, limit: int = 200, offset: int = 0
+    ):
         def _op():
             where, params = ("WHERE session_id=?", (session_id,)) if session_id else ("", ())
             total = self._fetchone(f"SELECT COUNT(*) AS n FROM executions {where}", params)["n"]
             rows = self._fetchall(
                 f"SELECT * FROM executions {where} ORDER BY sequence LIMIT ? OFFSET ?",
-                (*params, limit, offset))
+                (*params, limit, offset),
+            )
             return [self._execution_out(r) for r in rows], total
+
         return await asyncio.to_thread(_op)
 
     # -- detections ---------------------------------------------------------------
-    async def list_detections(self, session_id: str | None = None, limit: int = 200, offset: int = 0):
+    async def list_detections(
+        self, session_id: str | None = None, limit: int = 200, offset: int = 0
+    ):
         def _op():
             where, params = ("WHERE session_id=?", (session_id,)) if session_id else ("", ())
-            total = self._fetchone(f"SELECT COUNT(*) AS n FROM drift_detections {where}", params)["n"]
+            total = self._fetchone(f"SELECT COUNT(*) AS n FROM drift_detections {where}", params)[
+                "n"
+            ]
             rows = self._fetchall(
                 f"SELECT * FROM drift_detections {where} ORDER BY created_at DESC LIMIT ? OFFSET ?",
-                (*params, limit, offset))
+                (*params, limit, offset),
+            )
             return [self._detection_out(r) for r in rows], total
+
         return await asyncio.to_thread(_op)
 
     async def has_loop_alert(self, execution_id: str) -> bool:
         def _op():
-            return bool(self._fetchone(
-                "SELECT 1 FROM drift_detections WHERE execution_id=? AND kind='ping_pong_loop'",
-                (execution_id,)))
+            return bool(
+                self._fetchone(
+                    "SELECT 1 FROM drift_detections WHERE execution_id=? AND kind='ping_pong_loop'",
+                    (execution_id,),
+                )
+            )
+
         return await asyncio.to_thread(_op)
 
-    async def record_loop(self, *, session_id: str, execution_id: str, prior_execution_id: str | None,
-                          agent_id: str, similarity: float, threshold: float, evidence: dict) -> None:
+    async def record_loop(
+        self,
+        *,
+        session_id: str,
+        execution_id: str,
+        prior_execution_id: str | None,
+        agent_id: str,
+        similarity: float,
+        threshold: float,
+        evidence: dict,
+    ) -> None:
         def _op():
             if self._fetchone(
-                    "SELECT 1 FROM drift_detections WHERE execution_id=? AND kind='ping_pong_loop'",
-                    (execution_id,)):
+                "SELECT 1 FROM drift_detections WHERE execution_id=? AND kind='ping_pong_loop'",
+                (execution_id,),
+            ):
                 return
             self._execute(
                 "INSERT INTO drift_detections(detection_id, session_id, execution_id,"
                 " prior_execution_id, kind, agent_id, similarity, threshold, evidence, created_at)"
                 " VALUES(?,?,?,?,?,?,?,?,?,?)",
-                (uuid.uuid4().hex, session_id, execution_id, prior_execution_id,
-                 "ping_pong_loop", agent_id, similarity, threshold,
-                 _jdumps(evidence), time.time()),
+                (
+                    uuid.uuid4().hex,
+                    session_id,
+                    execution_id,
+                    prior_execution_id,
+                    "ping_pong_loop",
+                    agent_id,
+                    similarity,
+                    threshold,
+                    _jdumps(evidence),
+                    time.time(),
+                ),
             )
+
         await asyncio.to_thread(_op)
 
     async def stats(self) -> dict:
@@ -444,9 +537,12 @@ class HybridStore:
             e = self._fetchone("SELECT COUNT(*) AS n FROM executions")["n"]
             d = self._fetchone("SELECT COUNT(*) AS n FROM drift_detections")["n"]
             kinds: dict[str, int] = {}
-            for row in self._fetchall("SELECT kind, COUNT(*) AS n FROM drift_detections GROUP BY kind"):
+            for row in self._fetchall(
+                "SELECT kind, COUNT(*) AS n FROM drift_detections GROUP BY kind"
+            ):
                 kinds[row["kind"]] = row["n"]
             return {"sessions": s, "executions": e, "detections": d, "by_kind": kinds}
+
         return await asyncio.to_thread(_op)
 
     # -- sentinel scan ---------------------------------------------------------
@@ -454,11 +550,11 @@ class HybridStore:
         """Flag consecutive steps with matching state_hash or LanceDB cosine
         similarity >= threshold as ping_pong_loop; persist alerts to SQLite."""
         from app.embeddings import get_embedding_service
+
         svc = get_embedding_service()
 
         def _sessions() -> list[str]:
-            return [r["session_id"] for r in
-                    self._fetchall("SELECT session_id FROM sessions")]
+            return [r["session_id"] for r in self._fetchall("SELECT session_id FROM sessions")]
 
         loops: list[dict] = []
         for sid in await asyncio.to_thread(_sessions):
@@ -469,55 +565,81 @@ class HybridStore:
                 sim: float | None = None
                 try:
                     cur_vec = await asyncio.to_thread(
-                        svc.embed_payload, cur.get("input_payload"), cur.get("output_payload"))
+                        svc.embed_payload, cur.get("input_payload"), cur.get("output_payload")
+                    )
                     sim = await self.pair_similarity(
-                        sid, str(prev["execution_id"]), str(cur["execution_id"]), cur_vec)
+                        sid, str(prev["execution_id"]), str(cur["execution_id"]), cur_vec
+                    )
                     if sim is None:  # vectors predate this engine version; backfill
                         await asyncio.to_thread(
                             self._store_vector_sync,
-                            str(prev["execution_id"]), sid,
+                            str(prev["execution_id"]),
+                            sid,
                             await asyncio.to_thread(
-                                svc.embed_payload, prev.get("input_payload"), prev.get("output_payload")),
+                                svc.embed_payload,
+                                prev.get("input_payload"),
+                                prev.get("output_payload"),
+                            ),
                         )
                         await asyncio.to_thread(
-                            self._store_vector_sync, str(cur["execution_id"]), sid, cur_vec)
+                            self._store_vector_sync, str(cur["execution_id"]), sid, cur_vec
+                        )
                         sim = await self.pair_similarity(
-                            sid, str(prev["execution_id"]), str(cur["execution_id"]), cur_vec)
+                            sid, str(prev["execution_id"]), str(cur["execution_id"]), cur_vec
+                        )
                 except Exception as exc:
                     log.debug("similarity failed for %s: %s", cur.get("execution_id"), exc)
                     sim = 1.0 if same_hash else 0.0
                 if sim is None:
                     sim = 1.0 if same_hash else 0.0
                 if same_hash or sim >= threshold:
-                    reason = ("matching state_hash" if same_hash
-                              else f"cosine {sim:.4f} >= {threshold}")
-                    loops.append({
-                        "session_id": sid,
-                        "execution_id": cur["execution_id"],
-                        "prior_execution_id": prev["execution_id"],
-                        "kind": "ping_pong_loop",
-                        "similarity": round(float(sim), 4),
-                        "threshold": threshold,
-                        "evidence": {
-                            "reason": reason,
-                            "state_hash": ch if same_hash else None,
-                            "prev_sequence": prev.get("sequence"),
-                            "sequence": cur.get("sequence"),
-                        },
-                    })
+                    reason = (
+                        "matching state_hash" if same_hash else f"cosine {sim:.4f} >= {threshold}"
+                    )
+                    loops.append(
+                        {
+                            "session_id": sid,
+                            "execution_id": cur["execution_id"],
+                            "prior_execution_id": prev["execution_id"],
+                            "kind": "ping_pong_loop",
+                            "similarity": round(float(sim), 4),
+                            "threshold": threshold,
+                            "evidence": {
+                                "reason": reason,
+                                "state_hash": ch if same_hash else None,
+                                "prev_sequence": prev.get("sequence"),
+                                "sequence": cur.get("sequence"),
+                            },
+                        }
+                    )
         for loop in loops:
             exes, _ = await self.list_executions(loop["session_id"], limit=10000, offset=0)
-            agent_id = next((e["agent_id"] for e in exes
-                             if e["execution_id"] == loop["execution_id"]), "unknown")
-            await self.record_loop(agent_id=agent_id, **{k: loop[k] for k in (
-                "session_id", "execution_id", "prior_execution_id",
-                "similarity", "threshold", "evidence")})
+            agent_id = next(
+                (e["agent_id"] for e in exes if e["execution_id"] == loop["execution_id"]),
+                "unknown",
+            )
+            await self.record_loop(
+                agent_id=agent_id,
+                **{
+                    k: loop[k]
+                    for k in (
+                        "session_id",
+                        "execution_id",
+                        "prior_execution_id",
+                        "similarity",
+                        "threshold",
+                        "evidence",
+                    )
+                },
+            )
         return {"ok": True, "detections": len(loops), "threshold": threshold, "loops": loops}
 
     # -- seed ---------------------------------------------------------------------
-    async def ensure_seed(self, session_id: str = "seed-loop-session",
-                          state_hash: str = "seed-loop-state-v1") -> None:
+    async def ensure_seed(
+        self, session_id: str = "seed-loop-session", state_hash: str = "seed-loop-state-v1"
+    ) -> None:
         from app.embeddings import get_embedding_service
+
         svc = get_embedding_service()
         await self.ensure_session(session_id, "sentinel-seed-agent")
         exes, _ = await self.list_executions(session_id, limit=10, offset=0)
@@ -525,7 +647,8 @@ class HybridStore:
             seq = (max(e["sequence"] for e in exes) + 1) if exes else i + 1
             out = {"step": f"repeat action {i}", "state": "waiting-for-tool"}
             vec = await asyncio.to_thread(
-                svc.embed_payload, {"goal": "seeded ping-pong loop check"}, out)
+                svc.embed_payload, {"goal": "seeded ping-pong loop check"}, out
+            )
             eid = f"seed_exec_{i + 1}"
             now = time.time()
 
@@ -537,11 +660,22 @@ class HybridStore:
                     " agent_id, node_id, sequence, status, input_payload, output_payload,"
                     " thinking_trace, state_hash, created_at)"
                     " VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
-                    (eid, session_id, f"seed_exec_{i}" if i > 0 else None,
-                     "sentinel-seed-agent", "seed-node", seq, "ok",
-                     _jdumps({"goal": "seeded ping-pong loop check"}), _jdumps(out),
-                     _jdumps(None), state_hash, now),
+                    (
+                        eid,
+                        session_id,
+                        f"seed_exec_{i}" if i > 0 else None,
+                        "sentinel-seed-agent",
+                        "seed-node",
+                        seq,
+                        "ok",
+                        _jdumps({"goal": "seeded ping-pong loop check"}),
+                        _jdumps(out),
+                        _jdumps(None),
+                        state_hash,
+                        now,
+                    ),
                 )
+
             await asyncio.to_thread(_insert)
             await asyncio.to_thread(self._store_vector_sync, eid, session_id, vec)
 

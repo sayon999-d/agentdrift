@@ -74,6 +74,7 @@ current_identity: ContextVar[dict[str, Any]] = ContextVar(
 # Auth: Supabase JWT (HS256) or server API token
 # ---------------------------------------------------------------------------
 
+
 def _jwt_secret() -> str | None:
     return os.getenv("SUPABASE_JWT_SECRET", "").strip() or None
 
@@ -99,8 +100,11 @@ def _verify_supabase_jwt(token: str) -> str | None:
         return None
     try:
         claims = jwt.decode(
-            token, secret, algorithms=["HS256"],
-            audience="authenticated", leeway=30,
+            token,
+            secret,
+            algorithms=["HS256"],
+            audience="authenticated",
+            leeway=30,
             options={"require": ["exp", "sub"]},
         )
     except Exception:
@@ -108,7 +112,10 @@ def _verify_supabase_jwt(token: str) -> str | None:
         # rather than locking legitimate users out.
         try:
             claims = jwt.decode(
-                token, secret, algorithms=["HS256"], leeway=30,
+                token,
+                secret,
+                algorithms=["HS256"],
+                leeway=30,
                 options={"require": ["exp", "sub"]},
             )
         except Exception as exc:
@@ -132,7 +139,7 @@ def resolve_identity(authorization: str = "") -> dict[str, Any]:
     """
     presented = (authorization or "").strip()
     if presented.lower().startswith("bearer "):
-        presented = presented[len("Bearer "):].strip()
+        presented = presented[len("Bearer ") :].strip()
     if not presented:
         return {"user_id": None, "service": False}
     user_id = _verify_supabase_jwt(presented)
@@ -166,21 +173,21 @@ class _CloudAuthMiddleware:
         if scope.get("path") == "/health":
             await self.app(scope, receive, send)
             return
-        headers = {
-            k.decode().lower(): v.decode()
-            for k, v in scope.get("headers", [])
-        }
+        headers = {k.decode().lower(): v.decode() for k, v in scope.get("headers", [])}
         identity = resolve_identity(headers.get("authorization", ""))
         if not identity["service"] and identity["user_id"] is None:
             if _require_auth():
                 body = b'{"detail":"missing or invalid bearer token"}'
-                await send({
-                    "type": "http.response.start", "status": 401,
-                    "headers": [
-                        (b"content-type", b"application/json"),
-                        (b"content-length", str(len(body)).encode()),
-                    ],
-                })
+                await send(
+                    {
+                        "type": "http.response.start",
+                        "status": 401,
+                        "headers": [
+                            (b"content-type", b"application/json"),
+                            (b"content-length", str(len(body)).encode()),
+                        ],
+                    }
+                )
                 await send({"type": "http.response.body", "body": body})
                 return
         token = current_identity.set(identity)
@@ -210,7 +217,7 @@ def resolve_database_url(url: str | None = None) -> str | None:
         or None
     )
     if raw and raw.startswith("postgresql+asyncpg://"):
-        raw = "postgresql://" + raw[len("postgresql+asyncpg://"):]
+        raw = "postgresql://" + raw[len("postgresql+asyncpg://") :]
     return raw
 
 
@@ -228,14 +235,11 @@ async def get_pool():
             import asyncpg
             from pgvector.asyncpg import register_vector
         except ImportError as exc:
-            raise RuntimeError(
-                "cloud server needs the 'asyncpg' and 'pgvector' packages"
-            ) from exc
+            raise RuntimeError("cloud server needs the 'asyncpg' and 'pgvector' packages") from exc
         dsn = resolve_database_url()
         if not dsn:
             raise RuntimeError(
-                "cloud server needs SUPABASE_DATABASE_URL "
-                "(or AGENTDRIFT_DATABASE_URL)"
+                "cloud server needs SUPABASE_DATABASE_URL (or AGENTDRIFT_DATABASE_URL)"
             )
 
         async def _init(conn):
@@ -283,8 +287,7 @@ async def _probe_schema(pool) -> None:
                 )
             }
             _schema["has_user_id"] = all(
-                "user_id" in table_cols
-                for table_cols in (session_cols, cols, detection_cols)
+                "user_id" in table_cols for table_cols in (session_cols, cols, detection_cols)
             )
     except Exception as exc:
         _schema["has_user_id"] = False
@@ -366,6 +369,7 @@ def state_hash_of(payload: dict) -> str:
 # Multi-tenant DB helpers (every query scoped to the caller's user_id)
 # ---------------------------------------------------------------------------
 
+
 def _identity() -> dict[str, Any]:
     return current_identity.get()
 
@@ -382,7 +386,8 @@ async def _ensure_session(conn, session_id: str, agent_id: str, user_id: str | N
         await conn.execute(
             "INSERT INTO agent_sessions(session_id, user_id, agent_id)"
             " VALUES($1, $2, $3) ON CONFLICT(session_id) DO NOTHING",
-            session_id, uuid.UUID(user_id) if user_id else None,
+            session_id,
+            uuid.UUID(user_id) if user_id else None,
             agent_id or "unknown",
         )
         # session_id is globally unique. Do not let a second tenant attach
@@ -397,7 +402,8 @@ async def _ensure_session(conn, session_id: str, agent_id: str, user_id: str | N
         await conn.execute(
             "INSERT INTO agent_sessions(session_id, agent_id)"
             " VALUES($1, $2) ON CONFLICT(session_id) DO NOTHING",
-            session_id, agent_id or "unknown",
+            session_id,
+            agent_id or "unknown",
         )
 
 
@@ -425,6 +431,7 @@ def _row_turn(row) -> dict[str, Any]:
 # FastMCP cloud server + the 3 core tools
 # ---------------------------------------------------------------------------
 
+
 def _normalize_list_output_schemas(mcp: Any) -> None:
     """Stamp ``x-fastmcp-wrap-result`` on wrapped list schemas (see mcp_server)."""
     tools = getattr(getattr(mcp, "_tool_manager", None), "_tools", None) or {}
@@ -434,9 +441,9 @@ def _normalize_list_output_schemas(mcp: Any) -> None:
             schema = getattr(tool, "outputSchema", None)
         if not isinstance(schema, dict) or schema.get("x-fastmcp-wrap-result"):
             continue
-        if list(schema.get("required", [])) == ["result"] and set(
-            schema.get("properties", {})
-        ) == {"result"}:
+        if list(schema.get("required", [])) == ["result"] and set(schema.get("properties", {})) == {
+            "result"
+        }:
             try:
                 schema["x-fastmcp-wrap-result"] = True
             except Exception:
@@ -474,20 +481,25 @@ def create_cloud_mcp():
                 seq = await conn.fetchval(
                     "SELECT COALESCE(MAX(sequence), 0) + 1 FROM agent_executions"
                     f" WHERE session_id = $1{user_frag}",
-                    session_id, *user_params,
+                    session_id,
+                    *user_params,
                 )
                 cols = ["session_id", "agent_id", "node_id", "sequence"]
                 vals: list[Any] = [
-                    session_id, agent_id or "unknown",
-                    node_id or "default", seq,
+                    session_id,
+                    agent_id or "unknown",
+                    node_id or "default",
+                    seq,
                 ]
                 if _schema["has_user_id"] and user_id:
                     cols.append("user_id")
                     vals.append(user_id)
                 cols += ["payload", "thinking", "state_hash", _emb_col()]
                 vals += [
-                    json.dumps(payload, default=str), thinking or None,
-                    state_hash, vector,
+                    json.dumps(payload, default=str),
+                    thinking or None,
+                    state_hash,
+                    vector,
                 ]
                 placeholders = ", ".join(f"${i}" for i in range(1, len(vals) + 1))
                 row = await conn.fetchrow(
@@ -502,17 +514,19 @@ def create_cloud_mcp():
                     "SELECT execution_id, state_hash, sequence FROM agent_executions"
                     f" WHERE session_id = $1{prev_frag}"
                     " AND sequence < $2 ORDER BY sequence DESC LIMIT 1",
-                    session_id, seq, *prev_params,
+                    session_id,
+                    seq,
+                    *prev_params,
                 )
         turn = _row_turn(dict(row))
         loop = bool(
-            prev and prev["state_hash"] and state_hash
+            prev
+            and prev["state_hash"]
+            and state_hash
             and str(prev["state_hash"]) == str(state_hash)
         )
         turn["loop_detected"] = loop
-        turn["prior_execution_id"] = (
-            str(prev["execution_id"]) if prev else None
-        )
+        turn["prior_execution_id"] = str(prev["execution_id"]) if prev else None
         if loop:
             turn["warning"] = (
                 "Consecutive state hashes match: the agent is repeating the"
@@ -521,9 +535,7 @@ def create_cloud_mcp():
         return turn
 
     @mcp.tool()
-    async def check_drift_status(
-        session_id: str, threshold: float = 0.92
-    ) -> str:
+    async def check_drift_status(session_id: str, threshold: float = 0.92) -> str:
         """Circuit breaker: pgvector cosine over consecutive turns.
 
         Returns a critical STOP warning string when similarity >= threshold
@@ -541,7 +553,8 @@ def create_cloud_mcp():
                 "SELECT execution_id, agent_id, sequence, state_hash,"
                 f" {emb} AS vec FROM agent_executions"
                 f" WHERE session_id = $1{user_frag} ORDER BY sequence",
-                session_id, *user_params,
+                session_id,
+                *user_params,
             )
         if len(rows) < 2:
             return (
@@ -559,7 +572,8 @@ def create_cloud_mcp():
                         sim = await conn.fetchval(
                             f"SELECT 1.0 - ({emb} <=> $1) FROM agent_executions"
                             " WHERE execution_id = $2",
-                            list(cur["vec"]), str(prev["execution_id"]),
+                            list(cur["vec"]),
+                            str(prev["execution_id"]),
                         )
                         sim = round(float(sim), 4) if sim is not None else None
                     except Exception as exc:
@@ -567,10 +581,7 @@ def create_cloud_mcp():
             if sim is None:
                 sim = 1.0 if same_hash else 0.0
             if same_hash or sim >= threshold:
-                reason = (
-                    "matching state_hash" if same_hash
-                    else f"cosine {sim:.4f} >= {threshold}"
-                )
+                reason = "matching state_hash" if same_hash else f"cosine {sim:.4f} >= {threshold}"
                 pool3 = await get_pool()
                 async with pool3.acquire() as conn:
                     async with conn.transaction():
@@ -586,10 +597,13 @@ def create_cloud_mcp():
                                     " execution_id, prior_execution_id, user_id,"
                                     " agent_id, kind, similarity, threshold, evidence)"
                                     " VALUES($1,$2,$3,$4,$5,'ping_pong_loop',$6,$7,$8)",
-                                    session_id, str(cur["execution_id"]),
+                                    session_id,
+                                    str(cur["execution_id"]),
                                     str(prev["execution_id"]),
                                     uuid.UUID(user_id) if user_id else None,
-                                    cur["agent_id"], sim, threshold,
+                                    cur["agent_id"],
+                                    sim,
+                                    threshold,
                                     json.dumps({"reason": reason}),
                                 )
                             else:
@@ -598,9 +612,12 @@ def create_cloud_mcp():
                                     " execution_id, prior_execution_id,"
                                     " agent_id, kind, similarity, threshold, evidence)"
                                     " VALUES($1,$2,$3,$4,'ping_pong_loop',$5,$6,$7)",
-                                    session_id, str(cur["execution_id"]),
+                                    session_id,
+                                    str(cur["execution_id"]),
                                     str(prev["execution_id"]),
-                                    cur["agent_id"], sim, threshold,
+                                    cur["agent_id"],
+                                    sim,
+                                    threshold,
                                     json.dumps({"reason": reason}),
                                 )
                 return (
@@ -617,9 +634,7 @@ def create_cloud_mcp():
         )
 
     @mcp.tool()
-    async def get_session_trajectory(
-        session_id: str, limit: int = 10
-    ) -> list[dict[str, Any]]:
+    async def get_session_trajectory(session_id: str, limit: int = 10) -> list[dict[str, Any]]:
         """Recent turns for context pruning (newest last, capped by limit)."""
         ident = _identity()
         user_id = ident.get("user_id")
@@ -633,7 +648,9 @@ def create_cloud_mcp():
                 " payload, thinking, state_hash, created_at FROM agent_executions"
                 f" WHERE session_id = $1{user_frag}"
                 " ORDER BY sequence DESC LIMIT $2",
-                session_id, *user_params, max(limit, 1),
+                session_id,
+                *user_params,
+                max(limit, 1),
             )
         turns = [_row_turn(dict(r)) for r in reversed(rows)]
         return turns
@@ -648,6 +665,7 @@ mcp = create_cloud_mcp()
 # ---------------------------------------------------------------------------
 # ASGI app (uvicorn target) + CLI runner
 # ---------------------------------------------------------------------------
+
 
 def build_app(transport: str = "streamable-http", token: str | None = None):
     """Starlette app: /health (open) + MCP endpoint (Bearer-enforced)."""
@@ -700,13 +718,14 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument(
-        "--token", default=None,
+        "--token",
+        default=None,
         help="Optional extra static Bearer token (JWT auth always enforced)",
     )
     parser.add_argument(
-        "--allow-unauthenticated", action="store_true",
-        help="Allow requests without any token (local dev only; JWT still "
-             "checked when present)",
+        "--allow-unauthenticated",
+        action="store_true",
+        help="Allow requests without any token (local dev only; JWT still checked when present)",
     )
     args = parser.parse_args(argv)
     transport = "streamable-http" if args.transport == "http" else args.transport
@@ -722,9 +741,7 @@ def main(argv: list[str] | None = None) -> None:
     import uvicorn  # lazy
 
     application = build_app(transport, args.token)
-    log.info(
-        "agentdrift-cloud-mcp serving %s on %s:%d", transport, args.host, args.port
-    )
+    log.info("agentdrift-cloud-mcp serving %s on %s:%d", transport, args.host, args.port)
     uvicorn.run(application, host=args.host, port=args.port, log_level="info")
 
 

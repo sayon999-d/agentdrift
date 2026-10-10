@@ -271,9 +271,8 @@ def _normalize_list_output_schemas(mcp: Any) -> None:
 # Fast-path circuit breaker: state_hash compare BEFORE any vector math
 # ---------------------------------------------------------------------------
 
-async def _last_two_hashes(
-    store: Any, session_id: str
-) -> tuple[dict | None, dict | None]:
+
+async def _last_two_hashes(store: Any, session_id: str) -> tuple[dict | None, dict | None]:
     """Fetch the last two executions' (state_hash, payload) cheaply.
 
     Prefers a direct SQLite query (no vector I/O); falls back to
@@ -283,6 +282,7 @@ async def _last_two_hashes(
     hybrid = getattr(store, "_hybrid", None)
     sql = getattr(hybrid, "_sql", None)
     if sql is not None and session_id:
+
         def _op():
             lock = getattr(hybrid, "_lock", None)
             query = (
@@ -301,8 +301,11 @@ async def _last_two_hashes(
                     d = dict(r)
                 except Exception:
                     d = {
-                        "execution_id": r[0], "sequence": r[1], "state_hash": r[2],
-                        "input_payload": r[3], "output_payload": r[4],
+                        "execution_id": r[0],
+                        "sequence": r[1],
+                        "state_hash": r[2],
+                        "input_payload": r[3],
+                        "output_payload": r[4],
                     }
                 out.append(d)
             return out
@@ -337,12 +340,7 @@ def _payload_of(row: dict | None) -> Any:
         return row["output_payload"]
     if isinstance(row.get("input_payload"), dict) and row["input_payload"]:
         return row["input_payload"]
-    return (
-        row.get("output_payload")
-        or row.get("input_payload")
-        or row.get("payload")
-        or ""
-    )
+    return row.get("output_payload") or row.get("input_payload") or row.get("payload") or ""
 
 
 async def _circuit_breaker_check(
@@ -375,21 +373,24 @@ async def _circuit_breaker_check(
                 "threshold": threshold,
                 "fast_path": "state_hash",
                 "elapsed_ms": round(_now_ms() - started, 2),
-                "loops": [{
-                    "session_id": session_id,
-                    "execution_id": cur.get("execution_id"),
-                    "prior_execution_id": prev.get("execution_id"),
-                    "kind": "ping_pong_loop",
-                    "similarity": 1.0,
-                    "threshold": threshold,
-                    "evidence": {
-                        "reason": "matching state_hash",
-                        "state_hash": ch,
-                        "prev_sequence": prev.get("sequence"),
-                        "sequence": cur.get("sequence"),
-                    },
-                }],
+                "loops": [
+                    {
+                        "session_id": session_id,
+                        "execution_id": cur.get("execution_id"),
+                        "prior_execution_id": prev.get("execution_id"),
+                        "kind": "ping_pong_loop",
+                        "similarity": 1.0,
+                        "threshold": threshold,
+                        "evidence": {
+                            "reason": "matching state_hash",
+                            "state_hash": ch,
+                            "prev_sequence": prev.get("sequence"),
+                            "sequence": cur.get("sequence"),
+                        },
+                    }
+                ],
             }
+
         # Step 2: cheap hash-embedding cosine over payload text only.
         def _sim() -> float:
             va = embed_hashed(_payload_text(_payload_of(prev)))
@@ -408,19 +409,21 @@ async def _circuit_breaker_check(
                 "threshold": threshold,
                 "fast_path": "hash_cosine",
                 "elapsed_ms": round(_now_ms() - started, 2),
-                "loops": [{
-                    "session_id": session_id,
-                    "execution_id": cur.get("execution_id"),
-                    "prior_execution_id": prev.get("execution_id"),
-                    "kind": "ping_pong_loop",
-                    "similarity": sim,
-                    "threshold": threshold,
-                    "evidence": {
-                        "reason": f"hash cosine {sim:.4f} >= {threshold}",
-                        "prev_sequence": prev.get("sequence"),
-                        "sequence": cur.get("sequence"),
-                    },
-                }],
+                "loops": [
+                    {
+                        "session_id": session_id,
+                        "execution_id": cur.get("execution_id"),
+                        "prior_execution_id": prev.get("execution_id"),
+                        "kind": "ping_pong_loop",
+                        "similarity": sim,
+                        "threshold": threshold,
+                        "evidence": {
+                            "reason": f"hash cosine {sim:.4f} >= {threshold}",
+                            "prev_sequence": prev.get("sequence"),
+                            "sequence": cur.get("sequence"),
+                        },
+                    }
+                ],
             }
     # Step 3: no fast signal — full scan (vector search lives here).
     report = await store.check_drift(session_id, threshold)
@@ -628,14 +631,10 @@ def _http_app(mcp, transport: str, token: str | None):
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="AgentDrift MCP server")
-    parser.add_argument(
-        "--transport", choices=["stdio", "http", "sse"], default="stdio"
-    )
+    parser.add_argument("--transport", choices=["stdio", "http", "sse"], default="stdio")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8931)
-    parser.add_argument(
-        "--token", default=None, help="Bearer token (or AGENTDRIFT_MCP_TOKEN)"
-    )
+    parser.add_argument("--token", default=None, help="Bearer token (or AGENTDRIFT_MCP_TOKEN)")
     parser.add_argument(
         "--allow-unauthenticated",
         action="store_true",
@@ -659,9 +658,7 @@ def main(argv: list[str] | None = None) -> None:
             "or pass --allow-unauthenticated for local dev"
         )
     if not token:
-        log.warning(
-            "serving %s WITHOUT authentication (local dev only)", args.transport
-        )
+        log.warning("serving %s WITHOUT authentication (local dev only)", args.transport)
     import uvicorn  # lazy: stdio clients never pay this import
 
     from agentdrift.storage.factory import get_store as _get_store

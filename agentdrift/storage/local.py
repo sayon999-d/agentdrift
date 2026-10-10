@@ -17,8 +17,11 @@ def _split_payload(payload: dict[str, Any]) -> tuple[dict, dict, str | None]:
     state_hash = data.pop("state_hash", None)
     for in_key, out_key in (("input_payload", "output_payload"), ("input", "output")):
         if isinstance(data.get(in_key), dict) or isinstance(data.get(out_key), dict):
-            return (data.get(in_key) or {}, data.get(out_key) or {},
-                    state_hash if isinstance(state_hash, str) else None)
+            return (
+                data.get(in_key) or {},
+                data.get(out_key) or {},
+                state_hash if isinstance(state_hash, str) else None,
+            )
     return ({}, data, state_hash if isinstance(state_hash, str) else None)
 
 
@@ -49,21 +52,25 @@ class LocalHybridStore(BaseStore):
     ) -> dict[str, Any]:
         input_payload, output_payload, state_hash = _split_payload(payload or {})
         await self._hybrid.ensure_session(session_id, agent_id or "unknown")
-        execution, _detection = await self._hybrid.ingest_execution({
-            "session_id": session_id,
-            "agent_id": agent_id or "unknown",
-            "node_id": node_id or "default",
-            "input_payload": input_payload,
-            "output_payload": output_payload,
-            "thinking_trace": thinking,
-            "state_hash": state_hash,
-        })
+        execution, _detection = await self._hybrid.ingest_execution(
+            {
+                "session_id": session_id,
+                "agent_id": agent_id or "unknown",
+                "node_id": node_id or "default",
+                "input_payload": input_payload,
+                "output_payload": output_payload,
+                "thinking_trace": thinking,
+                "state_hash": state_hash,
+            }
+        )
         if embedding:  # caller-supplied vector wins over the computed one
             import asyncio
 
             await asyncio.to_thread(
                 self._hybrid._store_vector_sync,
-                execution["execution_id"], session_id, [float(x) for x in embedding],
+                execution["execution_id"],
+                session_id,
+                [float(x) for x in embedding],
             )
         execution.pop("payload_embedding", None)
         return execution
@@ -73,15 +80,17 @@ class LocalHybridStore(BaseStore):
         loops = result.get("loops", [])
         if session_id:
             loops = [lp for lp in loops if lp.get("session_id") == session_id]
-        return DriftReport(ok=True, session_id=session_id, detections=len(loops),
-                           threshold=threshold, loops=loops)
+        return DriftReport(
+            ok=True, session_id=session_id, detections=len(loops), threshold=threshold, loops=loops
+        )
 
     async def list_recent_executions(
         self, session_id: str | None = None, limit: int = 50
     ) -> list[dict[str, Any]]:
         rows, _ = await self._hybrid.list_executions(session_id, limit=max(limit * 4, 100))
-        rows.sort(key=lambda e: (str(e.get("created_at") or ""),
-                                 e.get("sequence") or 0), reverse=True)
+        rows.sort(
+            key=lambda e: (str(e.get("created_at") or ""), e.get("sequence") or 0), reverse=True
+        )
         out = rows[: max(limit, 0)]
         for row in out:
             row.pop("payload_embedding", None)

@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import hashlib
 import logging
-import math
 import re
 
 import numpy as np
@@ -117,8 +116,8 @@ class EmbeddingService:
     def _cross_encoder_nli(self, premise: str, hypothesis: str) -> float:
         if not self._nli_tried:
             self._nli_tried = True
-            from transformers import AutoModelForSequenceClassification, AutoTokenizer
             import torch
+            from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
             tok = AutoTokenizer.from_pretrained(self.settings.NLI_MODEL)
             mdl = AutoModelForSequenceClassification.from_pretrained(self.settings.NLI_MODEL)
@@ -146,7 +145,7 @@ def heuristic_contradiction(premise: str, hypothesis: str) -> float:
     if not content_p or not content_h:
         return 0.0
     overlap = len(content_p & content_h) / max(1, len(content_p | content_h))
-    neg_flip = (bool(pa & NEGATIONS) != bool(ha & NEGATIONS))
+    neg_flip = bool(pa & NEGATIONS) != bool(ha & NEGATIONS)
     if neg_flip and overlap > 0.4:
         return 0.85
     return 0.0

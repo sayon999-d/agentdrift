@@ -1,8 +1,14 @@
-# agentdrift daemon (Python 3.12+ port)
+# agentdrift — runtime supervisor for autonomous coding agents
 
-FastAPI + Uvicorn port of the Rust core daemon. Serves the Next.js dashboard
-(running on port 3000) at **http://127.0.0.1:8901** and persists to
-Supabase PostgreSQL + `pgvector`.
+AgentDrift is the runtime supervisor and circuit breaker for autonomous coding
+agents. It detects repetitive tool calls and execution spirals, then reports an
+intervention diagnostic before endless retries consume a token budget. The
+Python package includes a CLI, local and cloud Model Context Protocol (MCP)
+servers, and a web telemetry interface.
+
+**Python 3.12+** · [PyPI](https://pypi.org/project/agentdrift/) ·
+[Documentation](https://github.com/sayon999-d/agentdrift#readme) ·
+[Issues](https://github.com/sayon999-d/agentdrift/issues)
 
 ## Quickstart
 

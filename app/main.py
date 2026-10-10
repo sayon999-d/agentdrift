@@ -16,8 +16,8 @@ import re
 import time
 import uuid
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import FastAPI, Query, Request
 from fastapi.encoders import jsonable_encoder
@@ -44,8 +44,9 @@ _WORD_RE = re.compile(r"[a-z0-9]+")
 # Startup / lifespan
 # ---------------------------------------------------------------------------
 
+
 def _now():
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _seed_loop_data() -> None:
@@ -146,6 +147,7 @@ app.add_middleware(
 # Health (CLI Gate expects mode/db_connected fields)
 # ---------------------------------------------------------------------------
 
+
 def _health_payload() -> dict:
     db_ok = False
     mode = "in-memory"
@@ -216,11 +218,12 @@ async def v1_health_alias():
 # Returns {"ok","accepted","persisted","rejected","errors"}
 # ---------------------------------------------------------------------------
 
+
 class TelemetryBatch(BaseModel):
-    executions: Optional[list[dict[str, Any]]] = None
-    events: Optional[list[dict[str, Any]]] = None
-    telemetry: Optional[list[dict[str, Any]]] = None
-    items: Optional[list[dict[str, Any]]] = None
+    executions: list[dict[str, Any]] | None = None
+    events: list[dict[str, Any]] | None = None
+    telemetry: list[dict[str, Any]] | None = None
+    items: list[dict[str, Any]] | None = None
 
     model_config = {"extra": "allow"}
 
@@ -258,7 +261,9 @@ async def _ingest_batch(payload: Any) -> dict:
             data.setdefault("node_id", data.get("nodeId") or "default")
             data.setdefault("status", "ok")
             data.setdefault("input_payload", data.get("input") or data.get("input_payload") or {})
-            data.setdefault("output_payload", data.get("output") or data.get("output_payload") or {})
+            data.setdefault(
+                "output_payload", data.get("output") or data.get("output_payload") or {}
+            )
             if not isinstance(data["input_payload"], dict):
                 data["input_payload"] = {"value": data["input_payload"]}
             if not isinstance(data["output_payload"], dict):
@@ -315,6 +320,7 @@ async def ingest_api(request: Request):
 # Returns {"ok": true, "detections": <int>, "threshold": 0.92}
 # ---------------------------------------------------------------------------
 
+
 def _exec_text(exe: dict) -> str:
     import json
 
@@ -363,9 +369,7 @@ def _mem_sentinel_scan(threshold: float = SENTINEL_THRESHOLD) -> dict:
     for sid, exes in by_session.items():
         for prev, cur in zip(exes, exes[1:]):
             ph, ch = prev.get("state_hash"), cur.get("state_hash")
-            same_hash = (
-                ph is not None and ch is not None and str(ph) == str(ch) and str(ph) != ""
-            )
+            same_hash = ph is not None and ch is not None and str(ph) == str(ch) and str(ph) != ""
             sim: float | None = None
             try:
                 pemb = prev.get("payload_embedding") or svc.embed_text(_exec_text(prev))
@@ -375,20 +379,22 @@ def _mem_sentinel_scan(threshold: float = SENTINEL_THRESHOLD) -> dict:
                 sim = 1.0 if same_hash else 0.0
             if same_hash or (sim is not None and sim > threshold):
                 reason = "matching state_hash" if same_hash else f"cosine {sim:.4f} > {threshold}"
-                loops.append({
-                    "session_id": sid,
-                    "execution_id": cur.get("execution_id"),
-                    "prior_execution_id": prev.get("execution_id"),
-                    "kind": "ping_pong_loop",
-                    "similarity": round(float(sim if sim is not None else 1.0), 4),
-                    "threshold": threshold,
-                    "evidence": {
-                        "reason": reason,
-                        "state_hash": ch if same_hash else None,
-                        "prev_sequence": prev.get("sequence"),
-                        "sequence": cur.get("sequence"),
-                    },
-                })
+                loops.append(
+                    {
+                        "session_id": sid,
+                        "execution_id": cur.get("execution_id"),
+                        "prior_execution_id": prev.get("execution_id"),
+                        "kind": "ping_pong_loop",
+                        "similarity": round(float(sim if sim is not None else 1.0), 4),
+                        "threshold": threshold,
+                        "evidence": {
+                            "reason": reason,
+                            "state_hash": ch if same_hash else None,
+                            "prev_sequence": prev.get("sequence"),
+                            "sequence": cur.get("sequence"),
+                        },
+                    }
+                )
 
     # Persist loop detections (idempotent per execution_id) so GET
     # /detections and the dashboard reflect the scan.
@@ -405,7 +411,9 @@ def _mem_sentinel_scan(threshold: float = SENTINEL_THRESHOLD) -> dict:
                 "execution_id": loop["execution_id"],
                 "prior_execution_id": loop["prior_execution_id"],
                 "kind": "ping_pong_loop",
-                "agent_id": (mem.executions.get(loop["execution_id"], {}) or {}).get("agent_id", "unknown"),
+                "agent_id": (mem.executions.get(loop["execution_id"], {}) or {}).get(
+                    "agent_id", "unknown"
+                ),
                 "similarity": loop["similarity"],
                 "threshold": threshold,
                 "evidence": loop["evidence"],
@@ -421,8 +429,8 @@ def _mem_sentinel_scan(threshold: float = SENTINEL_THRESHOLD) -> dict:
 
 
 class ScanRequest(BaseModel):
-    threshold: Optional[float] = None
-    session_id: Optional[str] = None
+    threshold: float | None = None
+    session_id: str | None = None
 
     model_config = {"extra": "allow"}
 
@@ -441,8 +449,12 @@ async def _handle_scan(request: Request) -> dict:
     result = await _run_sentinel_scan(threshold=thr)
     # Contract requires ok/detections/threshold at top level;
     # "loops" detail is additive for watch mode / dashboard debugging.
-    return {"ok": True, "detections": int(result["detections"]), "threshold": thr,
-            "loops": result.get("loops", [])}
+    return {
+        "ok": True,
+        "detections": int(result["detections"]),
+        "threshold": thr,
+        "loops": result.get("loops", []),
+    }
 
 
 @app.post("/v1/sentinel/scan", tags=["sentinel"])
@@ -472,6 +484,7 @@ async def detect_root_alias(request: Request):
 # {"items"/"pairs"/"inputs": [...]} and returns deterministic scores.
 # ---------------------------------------------------------------------------
 
+
 class EvaluateItem(BaseModel):
     id: str = Field(default_factory=lambda: f"eval_{uuid.uuid4().hex[:8]}")
     premise: str = ""
@@ -489,11 +502,21 @@ def _score_pair(premise: str, hypothesis: str) -> dict[str, Any]:
     htoks = set(_WORD_RE.findall(h.lower()))
 
     if not p.strip() and not h.strip():
-        return {"entailment": 0.34, "neutral": 0.33, "contradiction": 0.33,
-                "label": "neutral", "margin": 0.01}
+        return {
+            "entailment": 0.34,
+            "neutral": 0.33,
+            "contradiction": 0.33,
+            "label": "neutral",
+            "margin": 0.01,
+        }
     if p.strip() == h.strip():
-        return {"entailment": 0.92, "neutral": 0.05, "contradiction": 0.03,
-                "label": "entailment", "margin": 0.87}
+        return {
+            "entailment": 0.92,
+            "neutral": 0.05,
+            "contradiction": 0.03,
+            "label": "entailment",
+            "margin": 0.87,
+        }
 
     content_p, content_h = ptoks - NEGATIONS, htoks - NEGATIONS
     union = content_p | content_h
@@ -575,6 +598,7 @@ async def evaluate_root(request: Request):
 # subsequent messages are deltas. `?once=true` returns one snapshot (handy
 # for smoke tests without holding a connection open).
 # ---------------------------------------------------------------------------
+
 
 async def _snapshot_events(session_id: str | None = None, limit: int = 200):
     exes, _ = await store.list_executions(session_id, limit, 0)
