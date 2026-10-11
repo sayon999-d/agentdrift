@@ -12,7 +12,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
+import secrets
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -38,6 +40,7 @@ SEED_SESSION_ID = "seed-loop-session"
 SEED_STATE_HASH = "seed-loop-state-v1"
 
 _WORD_RE = re.compile(r"[a-z0-9]+")
+cloud_mcp_app: Any | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -101,20 +104,28 @@ def _seed_loop_data() -> None:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    # Initialize the hybrid engine (SQLite + LanceDB at ~/.agentdrift) and
-    # seed the sentinel loop pair; fall back to memory seeding if needed.
-    try:
-        hybrid = store.get_hybrid()
-        if hybrid is not None:
-            await hybrid.ensure_seed()
-        else:
-            _seed_loop_data()
-    except Exception:
+    # Local/demo mode seeds a known sentinel example. A configured cloud SQL
+    # database must not create unrelated local files or demo rows.
+    if not store.use_db():
         try:
-            _seed_loop_data()
+            hybrid = store.get_hybrid()
+            if hybrid is not None:
+                await hybrid.ensure_seed()
+            else:
+                _seed_loop_data()
         except Exception:
-            pass
-    yield
+            try:
+                _seed_loop_data()
+            except Exception:
+                pass
+    # Starlette does not consistently propagate lifespan events to mounted
+    # sub-apps across supported versions. Enter the MCP app lifespan explicitly
+    # so its Streamable HTTP/SSE session manager is ready before requests arrive.
+    if cloud_mcp_app is not None:
+        async with cloud_mcp_app.router.lifespan_context(cloud_mcp_app):
+            yield
+    else:
+        yield
     try:
         await database.dispose_engine()
     except Exception:
@@ -122,9 +133,11 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(
-    title="agentdrift-daemon",
+    title="agentdrift-cloud-mcp",
     version="0.1.0",
-    description="Drift detection daemon for AI agent executions (Python port)",
+    description="AgentDrift REST telemetry API and authenticated Cloud MCP service.",
+    docs_url="/docs",
+    openapi_url="/openapi.json",
     lifespan=lifespan,
 )
 
@@ -141,6 +154,64 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def protect_cloud_rest_api(request: Request, call_next):
+    """Require a service credential for unscoped REST routes in cloud mode.
+
+    The REST SQL store is not user-scoped. Accepting ordinary Supabase user
+    JWTs here would authenticate callers without applying tenant filters.
+    MCP paths use the cloud app's own JWT-aware middleware instead.
+    """
+    require_auth = os.getenv("AGENTDRIFT_REQUIRE_AUTH", "").strip().lower()
+    if require_auth not in {"1", "true", "yes"}:
+        return await call_next(request)
+
+    path = request.url.path
+    public_paths = {
+        "/health",
+        "/ready",
+        "/api/health",
+        "/api/ready",
+        "/v1/health",
+        "/docs",
+        "/openapi.json",
+        "/redoc",
+    }
+    if path in public_paths:
+        return await call_next(request)
+
+    # Mounted MCP routes retain JWT user scoping in cloud_server middleware.
+    if (
+        path in {"/mcp", "/sse", "/messages"}
+        or path.startswith(("/mcp/", "/sse/", "/messages/"))
+    ):
+        return await call_next(request)
+
+    configured_tokens = {
+        value.strip()
+        for value in (
+            os.getenv("AGENTDRIFT_REST_API_TOKEN", ""),
+            os.getenv("AGENTDRIFT_MCP_TOKEN", ""),
+            os.getenv("MCP_TOKEN", ""),
+        )
+        if value.strip()
+    }
+    authorization = request.headers.get("authorization", "").strip()
+    presented = authorization[7:].strip() if authorization.lower().startswith("bearer ") else ""
+    valid_service_token = any(
+        secrets.compare_digest(presented, token) for token in configured_tokens
+    )
+    if not presented or not valid_service_token:
+        from fastapi.responses import JSONResponse
+
+        return JSONResponse(
+            {"detail": "REST API requires a service bearer token"},
+            status_code=401,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return await call_next(request)
 
 
 # ---------------------------------------------------------------------------
@@ -173,6 +244,7 @@ def _health_payload() -> dict:
         embeddings_backend = "hash-fallback"
     return {
         "status": "ok",
+        "service": "agentdrift-cloud-mcp",
         "version": "0.1.0",
         "db_connected": db_ok,
         "mode": mode,
@@ -660,6 +732,7 @@ async def _stream_response(request: Request, session_id: str | None, poll: float
 
 
 @app.get("/v1/events/stream", tags=["stream"])
+@app.get("/v1/stream", tags=["stream"], include_in_schema=True)
 async def events_stream_v1(
     request: Request,
     session_id: str | None = Query(None),
@@ -689,6 +762,16 @@ app.include_router(api_router.router, prefix="/api", tags=["compat"])
 # detections, stats). Explicit /v1/sentinel/scan, /v1/detect, /v1/ingest and
 # /v1/evaluate above take precedence for those paths (first match wins).
 app.include_router(api_router.router, prefix="/v1", tags=["compat"])
+
+
+# The cloud MCP ASGI application is mounted last so the concrete FastAPI
+# routes, /docs, and /openapi.json retain precedence. MCP auth middleware stays
+# inside the mounted application, preserving its request-scoped Supabase JWT
+# identity and SSE/Streamable HTTP transport handling.
+from agentdrift.mcp.cloud_server import build_app as build_cloud_mcp_app
+
+cloud_mcp_app = build_cloud_mcp_app(os.getenv("CLOUD_TRANSPORT", "streamable-http"))
+app.mount("/", cloud_mcp_app, name="cloud-mcp")
 
 
 def main() -> None:

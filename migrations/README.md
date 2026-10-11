@@ -11,11 +11,18 @@ the numbered files are not one universal linear migration chain.
 | `001_init.sql` | FastAPI daemon via SQLAlchemy/Postgres | Sessions, executions, detections, JSONB, `payload_embedding vector(384)`, timestamps and indexes |
 | `002_supabase_mcp.sql` | Standalone `agentdrift.storage.supabase` adapter | Supabase MCP session/execution/detection tables and `embedding vector(384)` |
 | `002_cloud_mcp_supabase.sql` | Multi-tenant Cloud MCP server | `user_id`, Supabase Auth references, RLS policies, `payload_embedding vector(384)`, HNSW cosine index |
+| `003_unified_rest_api.sql` | Unified Render REST + Cloud MCP deployment | Adds daemon-compatible execution/session columns and synchronizes REST payloads with Cloud MCP payload columns |
 
 The two `002` scripts target different implementations and column conventions.
 Do not run both based only on their numeric prefix. The cloud schema header
 describes compatibility with Phase 1, but validate an existing database's
 columns and constraints before applying it.
+
+For Render's unified service, apply `002_cloud_mcp_supabase.sql` followed by
+`003_unified_rest_api.sql`. The latter is additive and allows the daemon's
+ORM routes and Cloud MCP tools to share records. Back up first and inspect the
+current schema, especially if the service was previously migrated with another
+`002` file.
 
 ## Tables and lifecycle
 

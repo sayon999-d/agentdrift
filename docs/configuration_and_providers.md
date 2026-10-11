@@ -17,6 +17,7 @@ read directly from `os.environ` in `mcp_server.py` and
 | `ENV` | `dev` | Environment label |
 | `DATABASE_URL` | empty | Async SQL database URL; when set, the daemon uses PostgreSQL persistence |
 | `SUPABASE_DB_URL` | empty | Alternate daemon DB URL used if `DATABASE_URL` is empty |
+| `SUPABASE_DATABASE_URL` | empty | Render/cloud alias used after the two daemon URL names |
 | `SYNC_DATABASE_URL` | empty | Synchronous migration-runner URL; also accepted after Supabase alias |
 | `CORS_ORIGINS` | localhost:3000 and 127.0.0.1:3000 | Comma-separated allowed origins |
 | `DRIFT_SIMILARITY_THRESHOLD` | `0.85` | Ingest-time drift classification threshold |

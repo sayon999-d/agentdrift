@@ -147,9 +147,14 @@ curl -N http://127.0.0.1:8901/v1/events/stream
 For supported coding CLIs and IDEs, transport compatibility, and
 client-specific setup examples, see the [MCP integration matrix](docs/MCP_INTEGRATION_MATRIX.md).
 
-The Supabase-backed remote MCP server is available at `/mcp` with Streamable
-HTTP, or `/sse` with legacy SSE. Apply
+The Render image runs the unified FastAPI app (`app.main:app`), exposing the
+REST API, `/docs`, and `/openapi.json` alongside the Cloud MCP ASGI app. Render
+defaults `CLOUD_TRANSPORT=sse`; choose `streamable-http` to serve that transport
+instead. REST data routes require `AGENTDRIFT_REST_API_TOKEN` (or fall back to
+`AGENTDRIFT_MCP_TOKEN`) when `AGENTDRIFT_REQUIRE_AUTH=1`; Cloud MCP retains its
+Supabase JWT/service-token middleware. Apply
 [`migrations/002_cloud_mcp_supabase.sql`](migrations/002_cloud_mcp_supabase.sql)
+and then [`migrations/003_unified_rest_api.sql`](migrations/003_unified_rest_api.sql)
 in the Supabase SQL Editor first. Set `SUPABASE_DATABASE_URL` to the direct
 Postgres URL (port 5432), `SUPABASE_JWT_SECRET` to the Supabase Auth JWT
 signing secret, and `AGENTDRIFT_REQUIRE_AUTH=1` in production. With Render,

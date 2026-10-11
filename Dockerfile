@@ -1,6 +1,6 @@
 # =============================================================================
-# AgentDrift Cloud MCP — production image (multi-stage).
-# Target:  uvicorn agentdrift.mcp.cloud_server:app --host 0.0.0.0 --port 8000
+# AgentDrift unified REST + Cloud MCP — production image (multi-stage).
+# Target:  uvicorn app.main:app --host 0.0.0.0 --port 8000
 # Build:   docker build -t agentdrift-cloud-mcp .
 # Run:     docker run -p 8000:8000 --env-file .env agentdrift-cloud-mcp
 # Slim tip: for a ~2GB-smaller CPU-only image, add build arg
@@ -50,6 +50,8 @@ WORKDIR /app
 COPY --from=builder /install /usr/local
 COPY pyproject.toml README.md ./
 COPY agentdrift/ agentdrift/
+COPY app/ app/
+COPY cli.py ./
 COPY mcp_server.py ./
 COPY migrations/ migrations/
 
@@ -60,4 +62,4 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD curl -fsS "http://127.0.0.1:${PORT:-8000}/health" || exit 1
 
-CMD ["sh", "-c", "uvicorn agentdrift.mcp.cloud_server:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

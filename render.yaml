@@ -1,5 +1,5 @@
 # =============================================================================
-# Render infrastructure-as-code for the AgentDrift Cloud MCP server.
+# Render infrastructure-as-code for the unified AgentDrift REST + Cloud MCP app.
 # Connect the repo in Render (New -> Blueprint -> select this file), then set
 # the secrets below in the Render dashboard (they are sync:false on purpose —
 # values live in Render, never in git).
@@ -8,8 +8,11 @@
 #   SUPABASE_JWT_SECRET     Auth -> Signer keys -> JWT Secret
 #   SUPABASE_URL            https://<project-ref>.supabase.co
 #   SUPABASE_ANON_KEY       Project API keys -> anon public
-# Optional: AGENTDRIFT_MCP_TOKEN (extra server-to-server token),
-#           AGENTDRIFT_REQUIRE_AUTH (defaults to enforced when secrets exist).
+#   Apply migrations/002_cloud_mcp_supabase.sql and then
+#   migrations/003_unified_rest_api.sql against the configured database.
+#   AGENTDRIFT_MCP_TOKEN  service token for unscoped REST access and MCP service calls
+# Optional: AGENTDRIFT_REST_API_TOKEN (dedicated REST token; falls back to MCP token),
+#           SUPABASE_JWT_SECRET remains the user-scoped Cloud MCP credential.
 # =============================================================================
 services:
   - type: web
@@ -32,5 +35,9 @@ services:
         sync: false
       - key: AGENTDRIFT_MCP_TOKEN
         sync: false
+      - key: AGENTDRIFT_REST_API_TOKEN
+        sync: false
       - key: AGENTDRIFT_REQUIRE_AUTH
         value: "1"
+      - key: CLOUD_TRANSPORT
+        value: sse

@@ -5,14 +5,17 @@ The FastAPI daemon is implemented in `app/main.py`, `app/routers/api.py`, and
 returns JSON except for the event stream. Interactive OpenAPI documentation is
 available at `/docs` and `/openapi.json` while the service is running.
 
-> **Route correction:** the implemented SSE endpoint is `GET /v1/events/stream`.
-> `GET /v1/stream` is not currently registered. The examples below document
-> the implemented route; clients relying on `/v1/stream` must use the actual
-> route or add an alias in a future code change.
+The SSE endpoint is available as both `GET /v1/events/stream` and the
+compatibility alias `GET /v1/stream`.
 
 ## Common behavior
 
 - JSON requests use `Content-Type: application/json`.
+- In authenticated Render/cloud mode, REST data routes require
+  `Authorization: Bearer <AGENTDRIFT_REST_API_TOKEN>` (falling back to
+  `AGENTDRIFT_MCP_TOKEN` or `MCP_TOKEN`). `/health`, docs, and OpenAPI are
+  public. Ordinary Supabase user JWTs are rejected by REST routes because this
+  API's current SQL store is not user-scoped.
 - Pydantic request models reject invalid typed fields with FastAPI's standard
   `422` response. Unknown fields are ignored by default in typed models.
 - Datetimes serialize as ISO-8601 strings. IDs are opaque strings; detection
@@ -122,6 +125,7 @@ similarity, threshold, evidence, and timestamps.
 | 201 | Ingested; response includes detection outcome |
 | 404 | Referenced session does not exist; create it first |
 | 422 | Invalid typed request |
+| 401 | Missing/invalid service bearer token in authenticated cloud mode |
 
 ## `GET /executions`
 

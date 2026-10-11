@@ -119,8 +119,10 @@ class EmbeddingService:
             import torch
             from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
-            tok = AutoTokenizer.from_pretrained(self.settings.NLI_MODEL)
-            mdl = AutoModelForSequenceClassification.from_pretrained(self.settings.NLI_MODEL)
+            # The configured model is a trusted project setting; weights are
+            # intentionally resolved from the Hub's current default revision.
+            tok = AutoTokenizer.from_pretrained(self.settings.NLI_MODEL)  # nosec B615
+            mdl = AutoModelForSequenceClassification.from_pretrained(self.settings.NLI_MODEL)  # nosec B615
             mdl.eval()
             self._nli = (tok, mdl, torch)
         tok, mdl, torch = self._nli

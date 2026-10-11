@@ -15,6 +15,7 @@ class Settings(BaseSettings):
 
     DATABASE_URL: str = ""
     SUPABASE_DB_URL: str = ""
+    SUPABASE_DATABASE_URL: str = ""
     SYNC_DATABASE_URL: str = ""
 
     EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
@@ -30,7 +31,7 @@ class Settings(BaseSettings):
 
     @property
     def async_db_url(self) -> str:
-        url = self.DATABASE_URL or self.SUPABASE_DB_URL
+        url = self.DATABASE_URL or self.SUPABASE_DB_URL or self.SUPABASE_DATABASE_URL
         if not url:
             return ""
         # Normalize to asyncpg driver

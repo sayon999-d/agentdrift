@@ -31,6 +31,11 @@ Trust boundaries:
 - Keep secrets in environment/secret managers; `.env` must remain untracked.
 - Do not record API keys, raw authorization headers, private keys, or
   unnecessary personal data in execution payloads or thinking traces.
+- In authenticated Cloud mode, REST data routes require a service bearer token
+  (`AGENTDRIFT_REST_API_TOKEN`, falling back to `AGENTDRIFT_MCP_TOKEN` or
+  `MCP_TOKEN`). REST queries are not user-scoped today, so the middleware rejects
+  ordinary Supabase user JWTs there. Cloud MCP endpoints keep their separate
+  JWT-based per-user scoping.
 - Limit auto-approved MCP tools and review each server's source and requested
   permissions.
 - Sanitize/validate at the boundary. Typed REST models validate known fields;
