@@ -37,6 +37,9 @@ yarn-error.log*
 .turbo/
 coverage/
 
+# Cloudflare Wrangler cache and authentication state
+.wrangler/
+
 # AgentDrift local data
 .agentdrift/
 *.db

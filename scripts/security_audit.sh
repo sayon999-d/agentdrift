@@ -4,6 +4,10 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+audit_cache="$(mktemp -d)"
+scan_output="$(mktemp)"
+trap 'rm -rf "$audit_cache"; rm -f "$scan_output"' EXIT
+
 for tool in bandit pip-audit npm detect-secrets python; do
   if ! command -v "$tool" >/dev/null 2>&1; then
     printf 'Required audit tool not found: %s\n' "$tool" >&2
@@ -15,18 +19,16 @@ printf '\n== Bandit: Python AST security analysis ==\n'
 bandit -r agentdrift app -ll -ii
 
 printf '\n== pip-audit: Python dependency vulnerabilities ==\n'
-pip-audit -r requirements.txt
+pip-audit -r requirements.txt --cache-dir "$audit_cache"
 
 printf '\n== npm audit: frontend dependency vulnerabilities ==\n'
 npm audit --prefix web --audit-level=high
 
 printf '\n== detect-secrets: repository secret scan ==\n'
-scan_output="$(mktemp)"
-trap 'rm -f "$scan_output"' EXIT
 # Include tracked and untracked repository files, while excluding local runtime
-# credentials and generated dependency/virtual-environment trees.
+# credentials and generated dependency, build, and CLI cache trees.
 detect-secrets scan --all-files \
-  --exclude-files '(^|/)(\.env$|\.git/|\.venv/|node_modules/|\.pytest_cache/|\.ruff_cache/)' \
+  --exclude-files '(^|/)(\.env$|\.git/|\.venv/|\.wrangler/|node_modules/|dist/|build/|\.pytest_cache/|\.ruff_cache/)' \
   > "$scan_output"
 python - "$scan_output" <<'PY'
 import json
