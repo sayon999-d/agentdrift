@@ -33,11 +33,14 @@ jobs:
         working-directory: web
         run: npm run build
 
+      - name: Verify Vite output
+        run: test -s web/dist/index.html
+
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/pages-action@v1
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           projectName: agentdrift
-          directory: web/dist
+          directory: ./web/dist
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}

@@ -5,7 +5,7 @@ description = "Runtime supervisor and circuit breaker for autonomous coding agen
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-  "fastapi>=0.115",
+  "fastapi>=0.115.0",
   "uvicorn[standard]>=0.30",
   "pydantic>=2.7",
   "pydantic-settings>=2.3",
@@ -23,7 +23,7 @@ dependencies = [
   "pyarrow>=14",
   "fastmcp>=2.0",
   "pyjwt[crypto]>=2.10",
-  "starlette>=0.40,<0.50",
+  "starlette>=1.3.1",
 ]
 
 [project.urls]
