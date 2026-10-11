@@ -21,7 +21,7 @@ def test_factory_defaults_to_local():
 
 
 def test_factory_selects_supabase_without_connecting(monkeypatch):
-    monkeypatch.setenv("SUPABASE_DATABASE_URL", "postgresql://user:pw@host:5432/db")
+    monkeypatch.setenv("SUPABASE_DATABASE_URL", "postgresql://host:5432/db")
     from agentdrift.storage.supabase import SupabasePgVectorStore
 
     assert backend_name() == "supabase-pgvector"

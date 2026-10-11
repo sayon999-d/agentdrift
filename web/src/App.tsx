@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import botanyVideo from './assets/botany-loop.mp4'
 import {
   ArrowRight, Check, ChevronDown, Cloud,
   Command, Copy, Cpu, Github, Layers3, LockKeyhole, Radio, ShieldAlert,
@@ -97,7 +96,7 @@ export default function App() {
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden bg-[#040608]">
         <video
           ref={videoRef}
-          src={botanyVideo}
+          src="/botany-loop.mp4"
           autoPlay
           loop
           muted
