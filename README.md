@@ -10,6 +10,13 @@ servers, and a web telemetry interface.
 [Documentation](https://github.com/sayon999-d/agentdrift#readme) ·
 [Issues](https://github.com/sayon999-d/agentdrift/issues)
 
+Project documentation: [architecture](docs/architecture.md) ·
+[API reference](docs/api_reference.md) ·
+[agent instructions](docs/agents_instruction.md) ·
+[configuration](docs/configuration_and_providers.md) ·
+[MCP client matrix](docs/MCP_INTEGRATION_MATRIX.md) ·
+[docs index](docs/README.md).
+
 ## Quickstart
 
 ```bash
@@ -136,6 +143,9 @@ curl -N http://127.0.0.1:8901/v1/events/stream
 ```
 
 ## Production Cloud MCP server
+
+For supported coding CLIs and IDEs, transport compatibility, and
+client-specific setup examples, see the [MCP integration matrix](docs/MCP_INTEGRATION_MATRIX.md).
 
 The Supabase-backed remote MCP server is available at `/mcp` with Streamable
 HTTP, or `/sse` with legacy SSE. Apply
