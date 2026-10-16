@@ -7,7 +7,7 @@ on:
   workflow_dispatch: # Allows manual trigger from the GitHub Actions tab
 
 permissions:
-  contents: write # Needed to create the GitHub Release
+  contents: read
 
 jobs:
   build-test:
@@ -59,6 +59,9 @@ jobs:
     name: Publish to PyPI + GitHub Release
     needs: build-test
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # Needed to create the GitHub Release
+      id-token: write # Needed for PyPI Trusted Publishing
     steps:
       - name: Download dist artifacts
         uses: actions/download-artifact@v4
@@ -66,10 +69,9 @@ jobs:
           name: dist
           path: dist
 
-      - name: Publish to PyPI with API Token
+      - name: Publish to PyPI with Trusted Publishing
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          password: ${{ secrets.PYPI_API_TOKEN }}
           skip-existing: true
 
       - name: Create GitHub Release with artifacts
