@@ -27,12 +27,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from agentdrift import __version__
+from agentdrift.api.workspace import router as workspace_router
+from agentdrift.mcp.cloud_server import build_app as build_cloud_mcp_app
 from app import database, store
 from app.config import get_settings
 from app.embeddings import get_embedding_service
 from app.routers import api as api_router
-from agentdrift import __version__
-from agentdrift.api.workspace import router as workspace_router
 
 START = time.time()
 settings = get_settings()
@@ -185,10 +186,7 @@ async def protect_cloud_rest_api(request: Request, call_next):
         return await call_next(request)
 
     # Mounted MCP routes retain JWT user scoping in cloud_server middleware.
-    if (
-        path in {"/mcp", "/sse", "/messages"}
-        or path.startswith(("/mcp/", "/sse/", "/messages/"))
-    ):
+    if path in {"/mcp", "/sse", "/messages"} or path.startswith(("/mcp/", "/sse/", "/messages/")):
         return await call_next(request)
 
     configured_tokens = {
@@ -772,8 +770,6 @@ app.include_router(workspace_router, tags=["workspace-memory"])
 # routes, /docs, and /openapi.json retain precedence. MCP auth middleware stays
 # inside the mounted application, preserving its request-scoped Supabase JWT
 # identity and SSE/Streamable HTTP transport handling.
-from agentdrift.mcp.cloud_server import build_app as build_cloud_mcp_app
-
 cloud_mcp_app = build_cloud_mcp_app(os.getenv("CLOUD_TRANSPORT", "streamable-http"))
 app.mount("/", cloud_mcp_app, name="cloud-mcp")
 

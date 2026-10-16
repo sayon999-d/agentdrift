@@ -1,4 +1,5 @@
 """Regression checks for wheel-safe console script entrypoints."""
+
 import importlib
 import tomllib
 from pathlib import Path

@@ -1,4 +1,5 @@
 """Authenticated MCP JSON-RPC HTTP and workspace inspection routes."""
+
 from __future__ import annotations
 
 import hmac
@@ -18,9 +19,15 @@ router = APIRouter()
 
 async def require_service_token(authorization: str | None = Header(default=None)) -> None:
     expected = os.getenv("AGENTDRIFT_SERVICE_TOKEN", "").strip()
-    presented = authorization[7:].strip() if authorization and authorization.lower().startswith("bearer ") else ""
+    presented = (
+        authorization[7:].strip()
+        if authorization and authorization.lower().startswith("bearer ")
+        else ""
+    )
     if not expected or not presented or not hmac.compare_digest(expected, presented):
-        raise HTTPException(401, "valid service bearer token required", headers={"WWW-Authenticate": "Bearer"})
+        raise HTTPException(
+            401, "valid service bearer token required", headers={"WWW-Authenticate": "Bearer"}
+        )
 
 
 class RpcRequest(BaseModel):
@@ -34,11 +41,17 @@ class RpcRequest(BaseModel):
 async def mcp_http_call(body: RpcRequest, authorization: str | None = Header(default=None)):
     await require_service_token(authorization)
     if body.jsonrpc != "2.0":
-        return {"jsonrpc": "2.0", "id": body.id, "error": {"code": -32600, "message": "jsonrpc must be 2.0"}}
+        return {
+            "jsonrpc": "2.0",
+            "id": body.id,
+            "error": {"code": -32600, "message": "jsonrpc must be 2.0"},
+        }
     if body.method == "initialize":
-        result = {"protocolVersion": body.params.get("protocolVersion", "2025-03-26"),
-                  "capabilities": {"tools": {"listChanged": False}},
-                  "serverInfo": {"name": "agentdrift-workspace-memory", "version": __version__}}
+        result = {
+            "protocolVersion": body.params.get("protocolVersion", "2025-03-26"),
+            "capabilities": {"tools": {"listChanged": False}},
+            "serverInfo": {"name": "agentdrift-workspace-memory", "version": __version__},
+        }
     elif body.method in {"notifications/initialized", "notifications/cancelled"}:
         return Response(status_code=202)
     elif body.method == "ping":
@@ -55,9 +68,16 @@ async def mcp_http_call(body: RpcRequest, authorization: str | None = Header(def
         except (TypeError, ValueError) as exc:
             return {"jsonrpc": "2.0", "id": body.id, "error": {"code": -32602, "message": str(exc)}}
         structured = data if isinstance(data, dict) else {"items": data}
-        result = {"content": [{"type": "text", "text": json.dumps(data, default=str)}], "structuredContent": structured}
+        result = {
+            "content": [{"type": "text", "text": json.dumps(data, default=str)}],
+            "structuredContent": structured,
+        }
     else:
-        return {"jsonrpc": "2.0", "id": body.id, "error": {"code": -32601, "message": f"unsupported MCP method: {body.method}"}}
+        return {
+            "jsonrpc": "2.0",
+            "id": body.id,
+            "error": {"code": -32601, "message": f"unsupported MCP method: {body.method}"},
+        }
     return {"jsonrpc": "2.0", "id": body.id, "result": result}
 
 

@@ -1,4 +1,5 @@
 """Tool schemas and handlers for the workspace memory MCP surface."""
+
 from __future__ import annotations
 
 import hashlib
@@ -23,14 +24,64 @@ def set_service(service: WorkspaceService | None) -> None:
 
 
 TOOLS = [
-    {"name": "mcp__get_workspace_state", "description": "Get a token-dense summary of shared workspace changes and contracts.",
-     "inputSchema": {"type": "object", "properties": {"session_id": {"type": "string"}, "scope": {"type": "string", "enum": ["backend", "frontend", "audit", "all"]}, "query": {"type": "string"}}, "required": ["session_id", "scope"]}},
-    {"name": "mcp__record_action", "description": "Record completed agent work and exported contracts.",
-     "inputSchema": {"type": "object", "properties": {"session_id": {"type": "string"}, "agent_name": {"type": "string"}, "action_type": {"type": "string", "enum": ["create", "edit", "audit", "refactor"]}, "files_touched": {"type": "array", "items": {"type": "string"}}, "summary": {"type": "string"}, "diff_hash": {"type": "string"}, "exported_contracts": {"type": "object"}, "scan_status": {"type": "string", "enum": ["passed", "flagged"]}}, "required": ["session_id", "agent_name", "action_type", "files_touched", "summary"]}},
-    {"name": "mcp__get_pending_audits", "description": "List changed files whose latest content hash has not been audited.",
-     "inputSchema": {"type": "object", "properties": {"session_id": {"type": "string"}, "auditor_name": {"type": "string"}, "scope": {"type": "string"}}, "required": ["session_id", "auditor_name"]}},
-    {"name": "mcp__assert_task_novelty", "description": "Check whether a task duplicates recent work on the same files.",
-     "inputSchema": {"type": "object", "properties": {"session_id": {"type": "string"}, "task_description": {"type": "string"}, "target_files": {"type": "array", "items": {"type": "string"}}, "querying_agent": {"type": "string"}}, "required": ["session_id", "task_description", "target_files"]}},
+    {
+        "name": "mcp__get_workspace_state",
+        "description": "Get a token-dense summary of shared workspace changes and contracts.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "session_id": {"type": "string"},
+                "scope": {"type": "string", "enum": ["backend", "frontend", "audit", "all"]},
+                "query": {"type": "string"},
+            },
+            "required": ["session_id", "scope"],
+        },
+    },
+    {
+        "name": "mcp__record_action",
+        "description": "Record completed agent work and exported contracts.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "session_id": {"type": "string"},
+                "agent_name": {"type": "string"},
+                "action_type": {"type": "string", "enum": ["create", "edit", "audit", "refactor"]},
+                "files_touched": {"type": "array", "items": {"type": "string"}},
+                "summary": {"type": "string"},
+                "diff_hash": {"type": "string"},
+                "exported_contracts": {"type": "object"},
+                "scan_status": {"type": "string", "enum": ["passed", "flagged"]},
+            },
+            "required": ["session_id", "agent_name", "action_type", "files_touched", "summary"],
+        },
+    },
+    {
+        "name": "mcp__get_pending_audits",
+        "description": "List changed files whose latest content hash has not been audited.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "session_id": {"type": "string"},
+                "auditor_name": {"type": "string"},
+                "scope": {"type": "string"},
+            },
+            "required": ["session_id", "auditor_name"],
+        },
+    },
+    {
+        "name": "mcp__assert_task_novelty",
+        "description": "Check whether a task duplicates recent work on the same files.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "session_id": {"type": "string"},
+                "task_description": {"type": "string"},
+                "target_files": {"type": "array", "items": {"type": "string"}},
+                "querying_agent": {"type": "string"},
+            },
+            "required": ["session_id", "task_description", "target_files"],
+        },
+    },
 ]
 
 
@@ -38,19 +89,41 @@ async def call_tool(name: str, args: dict[str, Any]) -> Any:
     service = get_service()
     sid = args["session_id"]
     if name == "mcp__get_workspace_state":
-        return await service.get_incremental_context(sid, args.get("scope", "all"), args.get("querying_agent", "unknown"), args.get("query"))
+        return await service.get_incremental_context(
+            sid, args.get("scope", "all"), args.get("querying_agent", "unknown"), args.get("query")
+        )
     if name == "mcp__record_action":
-        diff_hash = args.get("diff_hash") or hashlib.sha256(
-            json.dumps([sorted(set(args["files_touched"])), args["summary"]], separators=(",", ":")).encode()
-        ).hexdigest()
-        warning = await service.detect_redundancy_and_drift(sid, args["summary"], args["files_touched"])
-        action = await service.record_agent_work(sid, args["agent_name"], args["files_touched"], args["summary"], diff_hash, action_type=args["action_type"], exported_contracts=args.get("exported_contracts"), audit_status=args.get("scan_status", "passed"))
+        diff_hash = (
+            args.get("diff_hash")
+            or hashlib.sha256(
+                json.dumps(
+                    [sorted(set(args["files_touched"])), args["summary"]], separators=(",", ":")
+                ).encode()
+            ).hexdigest()
+        )
+        warning = await service.detect_redundancy_and_drift(
+            sid, args["summary"], args["files_touched"]
+        )
+        action = await service.record_agent_work(
+            sid,
+            args["agent_name"],
+            args["files_touched"],
+            args["summary"],
+            diff_hash,
+            action_type=args["action_type"],
+            exported_contracts=args.get("exported_contracts"),
+            audit_status=args.get("scan_status", "passed"),
+        )
         return {"checkpoint_id": action["id"], "recorded": True, "drift": warning}
     if name == "mcp__get_pending_audits":
         pending = await service.get_pending_audit_files(sid, args["auditor_name"])
         scope = args.get("scope")
         return [row for row in pending if not scope or row["file_path"].startswith(scope)]
     if name == "mcp__assert_task_novelty":
-        return await service.assert_task_novelty(sid, args["task_description"], args["target_files"],
-                                                 claiming_agent=args.get("querying_agent", "unknown"))
+        return await service.assert_task_novelty(
+            sid,
+            args["task_description"],
+            args["target_files"],
+            claiming_agent=args.get("querying_agent", "unknown"),
+        )
     raise KeyError(f"Unknown tool: {name}")
