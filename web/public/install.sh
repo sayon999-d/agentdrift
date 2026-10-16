@@ -77,7 +77,7 @@ USAGE:
     sh install.sh [OPTIONS]
 
 OPTIONS:
-    -v, --version <VERSION>     Install a specific version of AgentDrift (e.g. 0.1.0)
+    -v, --version <VERSION>     Install a specific version of AgentDrift (e.g. 2.0.0)
     -b, --bin-dir <PATH>        Directory where executable symlinks are placed (default: ~/.local/bin)
     -d, --install-dir <PATH>    Directory for the dedicated virtual environment (default: ~/.local/share/agentdrift)
         --no-modify-path        Do not attempt to update PATH in your shell configuration

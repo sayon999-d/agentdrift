@@ -1,9 +1,9 @@
 # `agentdrift` Python package
 
-This package contains shared storage interfaces and the production Cloud MCP
-server. The top-level `cli.py` and `mcp_server.py` files are the console
-entrypoints; they are not inside this package. Package metadata and entrypoints
-are declared in the repository-root `pyproject.toml`.
+This package contains the CLI, MCP server, shared storage interfaces, and the
+production Cloud MCP server. Root `cli.py` and `mcp_server.py` remain
+compatibility shims. Installed console scripts target package modules declared
+in the repository-root `pyproject.toml`.
 
 ## Install and use
 
@@ -28,6 +28,8 @@ unless `AGENTDRIFT_DATA_DIR` is set. Set `SUPABASE_DATABASE_URL` or
 
 | Path | Purpose |
 |---|---|
+| `cli.py` | Installed `agentdrift` command |
+| `mcp/server.py` | Installed `agentdrift-mcp` command |
 | `storage/base.py` | `BaseStore` contract and typed `DriftReport` |
 | `storage/factory.py` | Backend selection and lazy construction |
 | `storage/local.py` | Adapter over the app's SQLite/LanceDB hybrid engine |

@@ -8,6 +8,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from agentdrift import __version__
+
 
 # --- Sessions ---
 class SessionCreate(BaseModel):
@@ -100,7 +102,7 @@ class DetectRequest(BaseModel):
 
 class HealthOut(BaseModel):
     status: str = "ok"
-    version: str = "0.1.0"
+    version: str = __version__
     db_connected: bool = False
     db_mode: str = "memory"
     embeddings: str = "hash-fallback"

@@ -1,9 +1,7 @@
 """AgentDrift shared library.
 
-Layout note: ``app/`` is the FastAPI daemon package and ``cli.py`` /
-``mcp_server.py`` are runtime entrypoints; this ``agentdrift/`` package holds
-the backend-agnostic storage abstraction (``agentdrift.storage``) shared by
-both runtimes.
+The package owns the CLI, MCP server, API, and backend-agnostic storage
+abstraction so installed entrypoints resolve entirely within the package.
 """
 
-__version__ = "0.1.0"
+__version__ = "2.0.0"

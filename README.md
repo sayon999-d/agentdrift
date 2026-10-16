@@ -17,6 +17,50 @@ Project documentation: [architecture](docs/architecture.md) ·
 [MCP client matrix](docs/MCP_INTEGRATION_MATRIX.md) ·
 [docs index](docs/README.md).
 
+## Cross-agent workspace memory
+
+Apply `supabase/migrations/20261016_shared_workspace_memory.sql` to the target
+PostgreSQL/Supabase project. Configure `AGENTDRIFT_SERVICE_TOKEN` on the API and
+send it as `Authorization: Bearer <token>`. Set `DATABASE_URL` (or a Supabase
+database URL setting) to persist memory in PostgreSQL; without it, the daemon
+uses in-memory storage.
+
+The MCP-compatible HTTP endpoint is `POST /api/v1/mcp/tools/call`. It accepts
+JSON-RPC 2.0 `tools/list` and `tools/call` requests. Pass `session_id` in each
+tool's arguments to identify the repository workspace. The monitoring route is
+`GET /api/v1/workspace/{session_id}/timeline`.
+
+Example Cline `.cline/mcp.json` entry:
+
+```json
+{
+  "mcpServers": {
+    "agentdrift": {
+      "type": "streamableHttp",
+      "url": "http://localhost:8901/api/v1/mcp/tools/call",
+      "headers": { "Authorization": "Bearer YOUR_SERVICE_TOKEN" }
+    }
+  }
+}
+```
+
+For Claude Desktop, add a hosted HTTPS endpoint under **Settings → Connectors →
+Add custom connector**. Remote connectors are configured in the app; remote
+URLs in `claude_desktop_config.json` are not loaded. Claude Desktop's remote
+connector flow uses its supported authentication flow, so a fixed
+`AGENTDRIFT_SERVICE_TOKEN` may require an OAuth-capable proxy in front of this
+service. The local `claude_desktop_config.json` file is for local stdio MCP
+servers.
+
+For Codex CLI, add this to `~/.codex/config.toml` and export the token in the
+environment:
+
+```toml
+[mcp_servers.agentdrift]
+url = "http://localhost:8901/api/v1/mcp/tools/call"
+bearer_token_env_var = "AGENTDRIFT_SERVICE_TOKEN"
+```
+
 ## Quickstart
 
 ```bash

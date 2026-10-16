@@ -694,7 +694,7 @@ def build_app(transport: str = "streamable-http", token: str | None = None):
 
     extra = []
     if token:  # optional legacy static-token layer on top of JWT auth
-        from mcp_server import _BearerAuthMiddleware
+        from agentdrift.mcp.server import _BearerAuthMiddleware
 
         extra.append(Middleware(_BearerAuthMiddleware, token=token))
     return Starlette(

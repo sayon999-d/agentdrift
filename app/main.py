@@ -31,6 +31,8 @@ from app import database, store
 from app.config import get_settings
 from app.embeddings import get_embedding_service
 from app.routers import api as api_router
+from agentdrift import __version__
+from agentdrift.api.workspace import router as workspace_router
 
 START = time.time()
 settings = get_settings()
@@ -134,7 +136,7 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(
     title="agentdrift-cloud-mcp",
-    version="0.1.0",
+    version=__version__,
     description="AgentDrift REST telemetry API and authenticated Cloud MCP service.",
     docs_url="/docs",
     openapi_url="/openapi.json",
@@ -193,6 +195,7 @@ async def protect_cloud_rest_api(request: Request, call_next):
         value.strip()
         for value in (
             os.getenv("AGENTDRIFT_REST_API_TOKEN", ""),
+            os.getenv("AGENTDRIFT_SERVICE_TOKEN", ""),
             os.getenv("AGENTDRIFT_MCP_TOKEN", ""),
             os.getenv("MCP_TOKEN", ""),
         )
@@ -245,7 +248,7 @@ def _health_payload() -> dict:
     return {
         "status": "ok",
         "service": "agentdrift-cloud-mcp",
-        "version": "0.1.0",
+        "version": __version__,
         "db_connected": db_ok,
         "mode": mode,
         # backwards-compat extras (older dashboard/tests read these)
@@ -762,6 +765,7 @@ app.include_router(api_router.router, prefix="/api", tags=["compat"])
 # detections, stats). Explicit /v1/sentinel/scan, /v1/detect, /v1/ingest and
 # /v1/evaluate above take precedence for those paths (first match wins).
 app.include_router(api_router.router, prefix="/v1", tags=["compat"])
+app.include_router(workspace_router, tags=["workspace-memory"])
 
 
 # The cloud MCP ASGI application is mounted last so the concrete FastAPI
