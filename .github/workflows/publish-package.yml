@@ -6,7 +6,7 @@ on:
       - main
     tags:
       - "v*"
-  workflow_dispatch: # Select a v* tag to manually run a release; main runs CI only.
+  workflow_dispatch: # Manual runs may publish from main or a version tag.
 
 permissions:
   contents: read
@@ -63,9 +63,16 @@ jobs:
 
   publish:
     name: Publish to PyPI + GitHub Release
-    # Tag pushes and workflow_dispatch runs targeting a v* tag publish.
-    # Branch pushes and manual runs targeting branches remain CI-only.
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Main pushes remain CI-only. Manual runs publish after CI from the
+    # selected ref, while automatic publishing is limited to version tags.
+    if: >-
+      ${{
+        needs.build-test.result == 'success' &&
+        (
+          github.event_name == 'workflow_dispatch' ||
+          (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
+        )
+      }}
     needs: build-test
     runs-on: ubuntu-latest
     permissions:
@@ -84,6 +91,7 @@ jobs:
           path: dist
 
       - name: Generate structured release summary
+        if: startsWith(github.ref, 'refs/tags/v')
         env:
           GITHUB_REF_NAME: ${{ github.ref_name }}
         run: python scripts/generate_release_notes.py
