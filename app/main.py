@@ -159,6 +159,30 @@ app.add_middleware(
 )
 
 
+@app.get("/", tags=["meta"])
+async def service_metadata(request: Request):
+    """Describe the deployed service and expose its operator entry points."""
+    transport = os.getenv("CLOUD_TRANSPORT", "streamable-http").strip().lower()
+    if transport == "http":
+        transport = "streamable-http"
+    return {
+        "service": "agentdrift-cloud-mcp",
+        "version": __version__,
+        "status": "ok",
+        "transport": transport,
+        "endpoints": {
+            "sse": "/sse",
+            "messages": "/messages",
+            "mcp": "/mcp",
+            "health": "/health",
+            "docs": "/docs",
+        },
+        "links": {
+            "docs": f"{str(request.base_url).rstrip('/')}/docs",
+        },
+    }
+
+
 @app.middleware("http")
 async def protect_cloud_rest_api(request: Request, call_next):
     """Require a service credential for unscoped REST routes in cloud mode.
@@ -173,6 +197,7 @@ async def protect_cloud_rest_api(request: Request, call_next):
 
     path = request.url.path
     public_paths = {
+        "/",
         "/health",
         "/ready",
         "/api/health",

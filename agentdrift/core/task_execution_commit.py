@@ -34,4 +34,3 @@ class TaskExecutionCommit(BaseModel):
     files_touched: list[FileChangeRecord] = Field(default_factory=list)
     exported_contracts: dict[str, Any] | None = None
     status: Literal["completed", "reverted", "audited"] = "completed"
-

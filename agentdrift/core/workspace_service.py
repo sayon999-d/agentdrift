@@ -60,7 +60,8 @@ class WorkspaceService:
             task_intent=task_intent or summary,
             execution_summary=summary,
             files_touched=[
-                FileChangeRecord(path=path, change_type=change_type) for path in sorted(set(files_touched))
+                FileChangeRecord(path=path, change_type=change_type)
+                for path in sorted(set(files_touched))
             ],
             exported_contracts=exported_contracts,
             status="audited" if action_type == "audit" else "completed",
@@ -80,9 +81,12 @@ class WorkspaceService:
             raise ValueError("audit_status must be passed or flagged")
         payload = commit.model_dump(mode="json")
         payload["session_id"] = session_id
-        payload["diff_hash"] = diff_hash or hashlib.sha256(
-            json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
-        ).hexdigest()
+        payload["diff_hash"] = (
+            diff_hash
+            or hashlib.sha256(
+                json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+            ).hexdigest()
+        )
         saved = await self.repository.record_commit(payload)
         for key, contract in (commit.exported_contracts or {}).items():
             await self.repository.upsert_artifact(
@@ -115,7 +119,11 @@ class WorkspaceService:
     def _commit_as_action(commit: dict[str, Any], diff_hash: str) -> dict[str, Any]:
         files = commit.get("files_touched", [])
         paths = [f["path"] if isinstance(f, dict) else f.path for f in files]
-        first_change = files[0].get("change_type", "modified") if files and isinstance(files[0], dict) else "modified"
+        first_change = (
+            files[0].get("change_type", "modified")
+            if files and isinstance(files[0], dict)
+            else "modified"
+        )
         action_type = {
             "added": "create",
             "modified": "edit",

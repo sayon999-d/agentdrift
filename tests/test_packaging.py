@@ -19,4 +19,4 @@ def test_package_version_matches_project_metadata():
     project = tomllib.loads(Path("pyproject.toml").read_text())
     from agentdrift import __version__
 
-    assert project["project"]["version"] == __version__ == "2.0.0"
+    assert project["project"]["version"] == __version__ == "2.10.0"

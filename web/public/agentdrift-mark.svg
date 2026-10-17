@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" aria-labelledby="title">
+  <title id="title">AgentDrift interwoven diamond mark</title>
+  <g stroke-linecap="square" stroke-linejoin="miter">
+    <path d="M32 3.5 58 29.5 32 55.5 6 29.5 32 3.5Z" stroke="#20252b" stroke-width="4.2"/>
+    <path d="m16.5 20 27 27M20 16.5l27 27M10.5 36l25-25M14 40l25-25" stroke="#626c75" stroke-width="3.3"/>
+    <path d="m26.5 26.5 13 13 13-13M26.5 39.5l13-13 13 13" stroke="#20252b" stroke-width="3.7"/>
+    <path d="m36 45 12-12 8-8" stroke="#293a70" stroke-width="4.2"/>
+    <path d="m7 43 11-11M46 15l8-8" stroke="#626c75" stroke-width="2.8"/>
+  </g>
+</svg>
