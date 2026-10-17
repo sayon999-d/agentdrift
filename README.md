@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="web/agentdrift-mark.svg" width="96" alt="AgentDrift interwoven diamond logo">
+</p>
+
 # agentdrift-mcp — runtime supervisor for autonomous coding agents
 
 AgentDrift is the runtime supervisor and circuit breaker for autonomous coding
