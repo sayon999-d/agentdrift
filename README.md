@@ -1,4 +1,4 @@
-# agentdrift — runtime supervisor for autonomous coding agents
+# agentdrift-mcp — runtime supervisor for autonomous coding agents
 
 AgentDrift is the runtime supervisor and circuit breaker for autonomous coding
 agents. It detects repetitive tool calls and execution spirals, then reports an
@@ -6,7 +6,7 @@ intervention diagnostic before endless retries consume a token budget. The
 Python package includes a CLI, local and cloud Model Context Protocol (MCP)
 servers, and a web telemetry interface.
 
-**Python 3.12+** · [PyPI](https://pypi.org/project/agentdrift/) ·
+**Python 3.12+** · [PyPI](https://pypi.org/project/agentdrift-mcp/) ·
 [Documentation](https://github.com/sayon999-d/agentdrift#readme) ·
 [Issues](https://github.com/sayon999-d/agentdrift/issues)
 
@@ -16,6 +16,11 @@ Project documentation: [architecture](docs/architecture.md) ·
 [configuration](docs/configuration_and_providers.md) ·
 [MCP client matrix](docs/MCP_INTEGRATION_MATRIX.md) ·
 [docs index](docs/README.md).
+
+Install the published package with `pip3 install agentdrift-mcp`. It provides
+the `agentdrift-mcp` MCP server command and the `agentdrift` CLI compatibility
+alias. MCP clients can launch the local server with
+`uvx --from agentdrift-mcp agentdrift-mcp`.
 
 ## Cross-agent workspace memory
 
@@ -30,12 +35,18 @@ JSON-RPC 2.0 `tools/list` and `tools/call` requests. Pass `session_id` in each
 tool's arguments to identify the repository workspace. The monitoring route is
 `GET /api/v1/workspace/{session_id}/timeline`.
 
+After the existing shared workspace memory migration, apply
+`supabase/migrations/20261017_task_execution_commits.sql` to create structured
+commit history and backfill earlier action records. New entries use the
+`TaskExecutionCommit` schema with task intent, technical summary, typed file
+changes, exported contracts, and status.
+
 Example Cline `.cline/mcp.json` entry:
 
 ```json
 {
   "mcpServers": {
-    "agentdrift": {
+    "agentdrift-mcp": {
       "type": "streamableHttp",
       "url": "http://localhost:8901/api/v1/mcp/tools/call",
       "headers": { "Authorization": "Bearer YOUR_SERVICE_TOKEN" }
@@ -56,7 +67,7 @@ For Codex CLI, add this to `~/.codex/config.toml` and export the token in the
 environment:
 
 ```toml
-[mcp_servers.agentdrift]
+[mcp_servers.agentdrift-mcp]
 url = "http://localhost:8901/api/v1/mcp/tools/call"
 bearer_token_env_var = "AGENTDRIFT_SERVICE_TOKEN"
 ```
@@ -125,7 +136,7 @@ automatically — Supabase when `SUPABASE_DATABASE_URL` (or
 
 | Mode | Backend | Data | Entry |
 |---|---|---|---|
-| Local (CLI / stdio) | SQLite + LanceDB | `~/.agentdrift/` (offline) | `agentdrift …`, `mcp_server.py --transport stdio` |
+| Local (CLI / stdio) | SQLite + LanceDB | `~/.agentdrift/` (offline) | `agentdrift …`, `agentdrift-mcp` |
 | Cloud MCP (remote) | Supabase Postgres + pgvector | Supabase project | `mcp_server.py --transport http --token …` |
 
 ### Phase 1 — Supabase migration (Cloud MCP)
@@ -149,11 +160,13 @@ AGENTDRIFT_MCP_TOKEN=secret SUPABASE_DATABASE_URL=... \
 python mcp_server.py --transport sse --port 8931 --token secret
 ```
 
-After `pip install -e .` the same server is available as `agentdrift-mcp`.
+Install from PyPI with `pip3 install agentdrift-mcp`, or use `pip install -e .`
+from a checkout. The MCP server executable is `agentdrift-mcp`; the `agentdrift`
+console command remains available as a CLI compatibility alias.
 Remote transports require `--token` (or `AGENTDRIFT_MCP_TOKEN`) unless
 `--allow-unauthenticated` is passed for local dev; `/health` is always open.
 
-## Terminal CLI (`agentdrift`)
+## Terminal CLI (`agentdrift` compatibility alias)
 
 The `cli.py` entrypoint replaces the web dashboard. Install it as a real
 command (project layout stays as-is: `app/` is the daemon package,
@@ -220,7 +233,7 @@ Claude Code (`.mcp.json`):
 ```json
 {
   "mcpServers": {
-    "agentdrift-cloud": {
+    "agentdrift-mcp-cloud": {
       "type": "http",
       "url": "https://mcp.your-domain.com/mcp",
       "headers": { "Authorization": "Bearer <SUPABASE_USER_TOKEN>" }
@@ -234,7 +247,7 @@ Cline (`cline_mcp_settings.json`):
 ```json
 {
   "mcpServers": {
-    "agentdrift-cloud": {
+    "agentdrift-mcp-cloud": {
       "type": "streamableHttp",
       "url": "https://mcp.your-domain.com/mcp",
       "headers": { "Authorization": "Bearer <SUPABASE_USER_TOKEN>" },
@@ -251,7 +264,7 @@ OpenCode (`opencode.json`):
 {
   "$schema": "https://opencode.ai/config.json",
   "mcp": {
-    "agentdrift-cloud": {
+    "agentdrift-mcp-cloud": {
       "type": "remote",
       "url": "https://mcp.your-domain.com/mcp",
       "oauth": false,

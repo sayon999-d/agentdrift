@@ -7,6 +7,7 @@ import json
 from typing import Any
 
 from agentdrift.core.workspace_service import WorkspaceService, default_service
+from agentdrift.core.task_execution_commit import TaskExecutionCommit
 
 _service: WorkspaceService | None = None
 
@@ -25,8 +26,44 @@ def set_service(service: WorkspaceService | None) -> None:
 
 TOOLS = [
     {
+        "name": "mcp__record_task_execution_commit",
+        "description": "Record completed agent work as a structured, auditable commit history entry.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "session_id": {"type": "string"},
+                "commit_id": {"type": "string"},
+                "timestamp": {"type": "string", "format": "date-time"},
+                "agent_id": {"type": "string"},
+                "task_intent": {"type": "string"},
+                "execution_summary": {"type": "string"},
+                "files_touched": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "path": {"type": "string"},
+                            "change_type": {
+                                "type": "string",
+                                "enum": ["added", "modified", "deleted", "audited"],
+                            },
+                            "diff_summary": {"type": "string"},
+                        },
+                        "required": ["path", "change_type"],
+                    },
+                },
+                "exported_contracts": {"type": "object"},
+                "status": {
+                    "type": "string",
+                    "enum": ["completed", "reverted", "audited"],
+                },
+            },
+            "required": ["session_id", "agent_id", "task_intent", "execution_summary"],
+        },
+    },
+    {
         "name": "mcp__get_workspace_state",
-        "description": "Get a token-dense summary of shared workspace changes and contracts.",
+        "description": "Read structured commit history, file changes, and exported workspace contracts.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -39,7 +76,7 @@ TOOLS = [
     },
     {
         "name": "mcp__record_action",
-        "description": "Record completed agent work and exported contracts.",
+        "description": "Compatibility tool; records legacy arguments as a structured commit history entry.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -88,6 +125,20 @@ TOOLS = [
 async def call_tool(name: str, args: dict[str, Any]) -> Any:
     service = get_service()
     sid = args["session_id"]
+    if name == "mcp__record_task_execution_commit":
+        commit = TaskExecutionCommit.model_validate(
+            {key: value for key, value in args.items() if key != "session_id"}
+        )
+        warning = await service.detect_redundancy_and_drift(
+            sid, commit.task_intent, [record.path for record in commit.files_touched]
+        )
+        saved = await service.record_task_execution_commit(sid, commit)
+        return {
+            "commit_id": saved["commit_id"],
+            "recorded": True,
+            "commit": saved,
+            "duplicate_check": warning,
+        }
     if name == "mcp__get_workspace_state":
         return await service.get_incremental_context(
             sid, args.get("scope", "all"), args.get("querying_agent", "unknown"), args.get("query")

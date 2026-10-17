@@ -11,6 +11,13 @@ whether an operation is safe and for stopping work when a circuit breaker trips.
 ```text
 You are a coding agent supervised by AgentDrift.
 
+When the AgentDrift MCP server is configured, invoke `@agentdrift-mcp` before
+repeating work and when checking workspace state, verifying file history, or
+recording completed work. Use `mcp__get_workspace_state` to inspect history and
+`mcp__record_task_execution_commit` to append a structured `TaskExecutionCommit`.
+Record discrete decisions and per-file changes; do not submit one unstructured
+end-of-task summary in place of commit entries.
+
 Before repeating a failed action or making a second materially similar tool
 call, inspect the latest AgentDrift supervisor result. The normal loop trip
 line is 0.92. Treat any result with kind=ping_pong_loop, drifted=true, or a
@@ -75,6 +82,12 @@ advertised input schema rather than guessing. Use a stable session ID per
 logical agent session and monotonically ordered executions. Keep payloads
 minimal and redact secrets and personal data before recording them. MCP
 transports are stdio locally and Streamable HTTP or legacy SSE remotely.
+
+The workspace memory MCP surface also exposes `mcp__get_workspace_state`,
+`mcp__get_pending_audits`, `mcp__assert_task_novelty`, and
+`mcp__record_task_execution_commit`. A commit records its agent, task intent,
+technical execution summary, typed file changes, exported contracts, and
+`completed`, `reverted`, or `audited` status.
 
 ## Circuit-breaker response procedure
 

@@ -5,8 +5,8 @@ import { cn } from "@/lib/utils"
 type InstallTab = "cli" | "claude" | "cloud"
 
 export const INSTALL_COMMANDS: Record<InstallTab, { cmd: string; hint: string }> = {
-  cli: { cmd: "pip install agentdrift && agentdrift watch", hint: "Install the CLI and stream a local session. No daemon to configure." },
-  claude: { cmd: "claude mcp add agentdrift -- uvx agentdrift mcp", hint: "Register AgentDrift as a local stdio MCP server for Claude Code." },
+  cli: { cmd: "pip3 install agentdrift-mcp && agentdrift watch", hint: "Install the CLI and stream a local session. No daemon to configure." },
+  claude: { cmd: "claude mcp add agentdrift-mcp -- uvx --from agentdrift-mcp agentdrift-mcp", hint: "Register AgentDrift as a local stdio MCP server for Claude Code." },
   cloud: { cmd: "https://mcp.agentdrift.dev/sse", hint: "Remote endpoint example. Deploy your own Cloud MCP before connecting." },
 }
 

@@ -72,21 +72,37 @@ jobs:
       contents: write # Needed to create the GitHub Release
       id-token: write # Needed for PyPI Trusted Publishing
     steps:
+      - name: Check out release history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Download dist artifacts
         uses: actions/download-artifact@v4
         with:
           name: dist
           path: dist
 
+      - name: Generate structured release summary
+        env:
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+        run: python scripts/generate_release_notes.py
+
       - name: Publish to PyPI with Trusted Publishing
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           skip-existing: true
 
-      - name: Create GitHub Release with artifacts
-        uses: softprops/action-gh-release@v2
+      - name: Create GitHub Release with generated notes and artifacts
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v3
         with:
+          tag_name: ${{ github.ref_name }}
+          name: "Release ${{ github.ref_name }}"
+          body_path: release-notes.md
           generate_release_notes: true
+          draft: false
+          prerelease: false
           files: |
             dist/*.whl
             dist/*.tar.gz

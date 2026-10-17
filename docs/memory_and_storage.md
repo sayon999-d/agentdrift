@@ -43,6 +43,12 @@ is configured. The MCP store factory uses `SUPABASE_DATABASE_URL` or
 `AGENTDRIFT_DATABASE_URL` to select its Supabase adapter. Use direct database
 credentials only in server environments.
 
+Shared workspace memory stores work history in `commit_history`. Apply
+`supabase/migrations/20261017_task_execution_commits.sql` after
+`20261016_shared_workspace_memory.sql`; it backfills legacy actions and enables
+RLS on the backend-managed history table. The MCP uses validated
+`TaskExecutionCommit` records rather than open-ended action blobs.
+
 ## Retention and lifecycle
 
 There is no built-in TTL, retention scheduler, or automatic archive policy in

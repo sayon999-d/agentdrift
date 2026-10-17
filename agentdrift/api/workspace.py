@@ -50,7 +50,7 @@ async def mcp_http_call(body: RpcRequest, authorization: str | None = Header(def
         result = {
             "protocolVersion": body.params.get("protocolVersion", "2025-03-26"),
             "capabilities": {"tools": {"listChanged": False}},
-            "serverInfo": {"name": "agentdrift-workspace-memory", "version": __version__},
+            "serverInfo": {"name": "agentdrift-mcp-workspace-memory", "version": __version__},
         }
     elif body.method in {"notifications/initialized", "notifications/cancelled"}:
         return Response(status_code=202)

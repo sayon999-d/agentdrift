@@ -9,7 +9,7 @@ This is the initial public release of the AgentDrift Python package, command-lin
 - **Ping-pong and state spiral detection.** Compares execution state and payload embeddings to identify repetitive behavior, including repeated failing tests and back-and-forth file changes. Drift reports include a similarity score and evidence to help explain the detection.
 - **Circuit-breaker diagnostics.** The CLI and MCP tools use a default similarity trip line of **0.92**. When a loop is detected, AgentDrift reports the intervention and its diagnostic so an integrating agent or supervisor can stop or redirect execution before further retries.
 - **Agent environment compatibility.** Provides MCP configuration examples for Claude Code, Cline, OpenCode, and Codex.
-- **MCP protocol server.** Run `agentdrift mcp` for a local stdio Model Context Protocol server. Its tools expose execution recording, drift checks, recent executions, and health information to MCP-compatible clients.
+- **MCP protocol server.** Run `agentdrift-mcp` for a local stdio Model Context Protocol server. Its tools expose execution recording, drift checks, recent executions, and health information to MCP-compatible clients.
 - **Cyber-botanical telemetry interface.** The `web/` frontend presents execution traces, CRT-inspired signal telemetry, and similarity metrics in a high-fidelity dashboard.
 
 ## Quick start
@@ -17,16 +17,16 @@ This is the initial public release of the AgentDrift Python package, command-lin
 Install from PyPI:
 
 ```bash
-pip install agentdrift
+pip3 install agentdrift-mcp
 ```
 
 Run the local MCP server on demand with `uvx`:
 
 ```bash
-uvx --from agentdrift agentdrift-mcp
+uvx --from agentdrift-mcp agentdrift-mcp
 ```
 
-The standalone MCP executable is published as `agentdrift-mcp`; `agentdrift mcp` is not a subcommand in this release.
+The standalone MCP executable is published as `agentdrift-mcp`; `agentdrift` remains the CLI compatibility alias.
 
 Watch a live agent session from the terminal:
 
@@ -46,7 +46,7 @@ Use `agentdrift watch --help` to see session filters and polling options. For cl
 
 - [GitHub repository](https://github.com/sayon999-d/agentdrift)
 - [Documentation and setup guide](https://github.com/sayon999-d/agentdrift#readme)
-- [PyPI package](https://pypi.org/project/agentdrift/)
+- [PyPI package](https://pypi.org/project/agentdrift-mcp/)
 - [Issue tracker](https://github.com/sayon999-d/agentdrift/issues)
 
 ## Changelog

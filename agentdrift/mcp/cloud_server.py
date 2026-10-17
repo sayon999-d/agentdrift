@@ -452,7 +452,7 @@ def _normalize_list_output_schemas(mcp: Any) -> None:
 
 def create_cloud_mcp():
     """Build the production Supabase-backed FastMCP server."""
-    mcp = FastMCP("agentdrift-cloud")
+    mcp = FastMCP("agentdrift-mcp-cloud")
 
     @mcp.tool()
     async def log_agent_turn(
@@ -674,7 +674,7 @@ def build_app(transport: str = "streamable-http", token: str | None = None):
     from starlette.routing import Mount, Route
 
     async def _health(_request):
-        return JSONResponse({"status": "ok", "service": "agentdrift-cloud-mcp"})
+        return JSONResponse({"status": "ok", "service": "agentdrift-mcp-cloud"})
 
     if hasattr(mcp, "http_app"):
         inner = mcp.http_app(path="/mcp", transport=transport)
@@ -741,7 +741,7 @@ def main(argv: list[str] | None = None) -> None:
     import uvicorn  # lazy
 
     application = build_app(transport, args.token)
-    log.info("agentdrift-cloud-mcp serving %s on %s:%d", transport, args.host, args.port)
+    log.info("agentdrift-mcp-cloud serving %s on %s:%d", transport, args.host, args.port)
     uvicorn.run(application, host=args.host, port=args.port, log_level="info")
 
 

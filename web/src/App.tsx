@@ -10,12 +10,12 @@ type InstallTab = 'cli' | 'claude' | 'cloud'
 type Architecture = 'local' | 'cloud'
 
 const installCommands: Record<InstallTab, string> = {
-  cli: 'pip install agentdrift && agentdrift watch',
-  claude: 'claude mcp add agentdrift -- uvx agentdrift mcp',
+  cli: 'pip3 install agentdrift-mcp && agentdrift watch',
+  claude: 'claude mcp add agentdrift-mcp -- uvx --from agentdrift-mcp agentdrift-mcp',
   cloud: 'https://mcp.agentdrift.dev/sse',
 }
 
-const HERO_INSTALL_CMD = 'uvx agentdrift mcp'
+const HERO_INSTALL_CMD = 'uvx --from agentdrift-mcp agentdrift-mcp'
 
 const featureCards = [
   { num: '01', icon: <Layers3 size={18} strokeWidth={1.5} className="text-white" />, title: 'Sub-millisecond\nlocal store', body: 'SQLite + LanceDB live in ~/.agentdrift. Every turn is indexed on-device. No account, no network, no waiting.', tag: '100% OFFLINE' },
@@ -201,7 +201,7 @@ export default function App() {
             <p>{architecture === 'local'
               ? 'Run the sentinel beside the agent. Turns are stored locally and compared before another action is taken. Works offline from the first command.'
               : 'Deploy the Python MCP server behind your own domain. Supabase Auth scopes sessions to each user; pgvector keeps similarity checks close to the data.'}</p>
-            <code>{architecture === 'local' ? 'uvx agentdrift mcp' : 'python -m agentdrift.mcp.cloud_server --transport sse'}</code>
+            <code>{architecture === 'local' ? 'uvx --from agentdrift-mcp agentdrift-mcp' : 'python -m agentdrift.mcp.cloud_server --transport sse'}</code>
             <span className="arch-note"><i /> {architecture === 'local' ? 'NO CLOUD ACCOUNT REQUIRED' : 'YOUR DATABASE · YOUR AUTH · YOUR RULES'}</span>
           </div>
         </div>
@@ -221,14 +221,14 @@ export default function App() {
             </div>
             <div className="install-code"><div><span className="install-prompt">$</span><code key={installTab}>{activeCommand}</code></div><button onClick={() => copyText(activeCommand, 'install', setCopied)} aria-label="Copy install command">{copied === 'install' ? <Check size={17} /> : <span className="copy-word">COPY</span>}</button></div>
             <div className="install-description">{installTab === 'cli' && 'Install the CLI and stream a local session. No daemon to configure.'}{installTab === 'claude' && 'Register AgentDrift as a local stdio MCP server for Claude Code.'}{installTab === 'cloud' && 'Remote endpoint example. Deploy your own Cloud MCP before connecting.'}</div>
-            <div className="install-bottom"><span><i /> READY TO RUN</span><a href="https://pypi.org/project/agentdrift/" target="_blank" rel="noreferrer">VIEW PACKAGE <ArrowRight size={13} /></a></div>
+            <div className="install-bottom"><span><i /> READY TO RUN</span><a href="https://pypi.org/project/agentdrift-mcp/" target="_blank" rel="noreferrer">VIEW PACKAGE <ArrowRight size={13} /></a></div>
           </div>
         </div>
       </section>
 
       <footer className="site-footer wrap">
         <div className="footer-bloom" aria-hidden="true"><span>✳</span><span>✳</span><span>✳</span><span>✳</span><span>✳</span></div>
-        <div className="footer-main"><div><BrandMark /><p>Keep the agent curious.<br />Keep the loop short.</p></div><div className="footer-links"><a href="https://github.com/search?q=agentdrift&type=repositories" target="_blank" rel="noreferrer"><Github size={14} /> GITHUB</a><a href="https://pypi.org/project/agentdrift/" target="_blank" rel="noreferrer"><Command size={14} /> PYPI PACKAGE</a><a href="#setup">DOCUMENTATION <ChevronDown size={13} /></a></div></div>
+        <div className="footer-main"><div><BrandMark /><p>Keep the agent curious.<br />Keep the loop short.</p></div><div className="footer-links"><a href="https://github.com/search?q=agentdrift&type=repositories" target="_blank" rel="noreferrer"><Github size={14} /> GITHUB</a><a href="https://pypi.org/project/agentdrift-mcp/" target="_blank" rel="noreferrer"><Command size={14} /> PYPI PACKAGE</a><a href="#setup">DOCUMENTATION <ChevronDown size={13} /></a></div></div>
         <div className="footer-bottom"><span>© AGENTDRIFT / BUILT FOR THE MOMENT BEFORE RETRY</span><span>LOCAL SIGNAL <b>✳</b> CLEAR INTENT</span></div>
       </footer>
       </div>

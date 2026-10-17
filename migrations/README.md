@@ -12,6 +12,7 @@ the numbered files are not one universal linear migration chain.
 | `002_supabase_mcp.sql` | Standalone `agentdrift.storage.supabase` adapter | Supabase MCP session/execution/detection tables and `embedding vector(384)` |
 | `002_cloud_mcp_supabase.sql` | Multi-tenant Cloud MCP server | `user_id`, Supabase Auth references, RLS policies, `payload_embedding vector(384)`, HNSW cosine index |
 | `003_unified_rest_api.sql` | Unified Render REST + Cloud MCP deployment | Adds daemon-compatible execution/session columns and synchronizes REST payloads with Cloud MCP payload columns |
+| `supabase/migrations/20261017_task_execution_commits.sql` | Shared workspace memory MCP | Structured `commit_history` entries, RLS enabled, and backfill from `agent_actions` |
 
 The two `002` scripts target different implementations and column conventions.
 Do not run both based only on their numeric prefix. The cloud schema header

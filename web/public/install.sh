@@ -226,9 +226,9 @@ main() {
   print_banner
   detect_os_arch
 
-  PKG_SPEC="agentdrift"
+  PKG_SPEC="agentdrift-mcp"
   if [ -n "$VERSION" ] && [ "$VERSION" != "latest" ]; then
-    PKG_SPEC="agentdrift==$VERSION"
+    PKG_SPEC="agentdrift-mcp==$VERSION"
   fi
 
   if [ "$DRY_RUN" -eq 1 ]; then

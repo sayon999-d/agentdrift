@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import uuid
+from datetime import UTC, datetime
 from typing import Any, Protocol
 
 from sqlalchemy import text
@@ -12,6 +14,8 @@ from app.database import get_session_factory
 
 class WorkspaceRepository(Protocol):
     async def upsert_session(self, session: dict[str, Any]) -> dict[str, Any]: ...
+    async def record_commit(self, commit: dict[str, Any]) -> dict[str, Any]: ...
+    async def list_commits(self, session_id: str) -> list[dict[str, Any]]: ...
     async def record_action(self, action: dict[str, Any]) -> dict[str, Any]: ...
     async def list_actions(self, session_id: str) -> list[dict[str, Any]]: ...
     async def upsert_artifact(self, artifact: dict[str, Any]) -> dict[str, Any]: ...
@@ -27,18 +31,69 @@ class InMemoryWorkspaceRepository:
     """Deterministic repository for local mode and tests."""
 
     def __init__(self) -> None:
-        self.actions: list[dict[str, Any]] = []
+        self.commits: list[dict[str, Any]] = []
         self.artifacts: dict[tuple[str, str], dict[str, Any]] = {}
         self.audits: dict[tuple[str, str], dict[str, Any]] = {}
         self.sessions: dict[str, dict[str, Any]] = {}
         self.task_claims: list[dict[str, Any]] = []
 
     async def record_action(self, action):
-        self.actions.append(dict(action))
-        return dict(action)
+        saved = await self.record_commit(self._legacy_commit(action))
+        return self._legacy_action(saved)
+
+    async def record_commit(self, commit):
+        self.commits.append(dict(commit))
+        return dict(commit)
+
+    async def list_commits(self, session_id):
+        return [dict(c) for c in self.commits if c["session_id"] == session_id]
 
     async def list_actions(self, session_id):
-        return [dict(a) for a in self.actions if a["session_id"] == session_id]
+        return [self._legacy_action(c) for c in await self.list_commits(session_id)]
+
+    @staticmethod
+    def _legacy_commit(action):
+        change_type = {
+            "create": "added",
+            "edit": "modified",
+            "refactor": "modified",
+            "audit": "audited",
+        }.get(action.get("action_type"), "modified")
+        return {
+            "commit_id": action.get("id") or uuid.uuid4().hex[:7],
+            "session_id": action["session_id"],
+            "agent_id": action["agent_name"],
+            "task_intent": action["summary"],
+            "execution_summary": action["summary"],
+            "files_touched": [
+                {"path": path, "change_type": change_type}
+                for path in action.get("files_touched", [])
+            ],
+            "exported_contracts": action.get("exported_contracts"),
+            "status": "audited" if change_type == "audited" else "completed",
+            "diff_hash": action.get("diff_hash", ""),
+            "timestamp": action.get("created_at") or datetime.now(UTC).isoformat(),
+        }
+
+    @staticmethod
+    def _legacy_action(commit):
+        change_types = {file["change_type"] for file in commit["files_touched"]}
+        action_type = (
+            "audit"
+            if "audited" in change_types
+            else "create"
+            if "added" in change_types
+            else "edit"
+        )
+        return {
+            **commit,
+            "id": commit["commit_id"],
+            "agent_name": commit["agent_id"],
+            "action_type": action_type,
+            "summary": commit["execution_summary"],
+            "files_touched": [file["path"] for file in commit["files_touched"]],
+            "created_at": commit["timestamp"],
+        }
 
     async def upsert_artifact(self, artifact):
         key = (artifact["session_id"], artifact["artifact_key"])
@@ -104,25 +159,33 @@ class PostgresWorkspaceRepository:
             return [self._json(row) for row in rows]
 
     async def record_action(self, a):
+        saved = await self.record_commit(InMemoryWorkspaceRepository._legacy_commit(a))
+        return InMemoryWorkspaceRepository._legacy_action(saved)
+
+    async def record_commit(self, commit):
         params = {
-            key: a[key]
-            for key in (
-                "session_id",
-                "agent_name",
-                "action_type",
-                "files_touched",
-                "summary",
-                "diff_hash",
-            )
+            **commit,
+            "files_touched": json.dumps(commit["files_touched"]),
+            "exported_contracts": json.dumps(commit.get("exported_contracts")),
         }
         return await self._run(
-            """WITH ensured AS (INSERT INTO workspace_sessions(id)
-            VALUES (:session_id) ON CONFLICT (id) DO UPDATE SET id=EXCLUDED.id RETURNING id)
-            INSERT INTO agent_actions
-            (session_id,agent_name,action_type,files_touched,summary,diff_hash)
-            VALUES (:session_id,:agent_name,:action_type,:files_touched,:summary,:diff_hash)
+            """WITH ensured AS (INSERT INTO workspace_sessions(id) VALUES (:session_id)
+            ON CONFLICT (id) DO UPDATE SET id=EXCLUDED.id RETURNING id)
+            INSERT INTO commit_history
+            (commit_id,session_id,agent_id,task_intent,execution_summary,files_touched,
+             exported_contracts,status,diff_hash,created_at)
+            VALUES (:commit_id,:session_id,:agent_id,:task_intent,:execution_summary,
+             CAST(:files_touched AS jsonb),CAST(:exported_contracts AS jsonb),:status,
+             :diff_hash,:timestamp)
             RETURNING *""",
             params,
+        )
+
+    async def list_commits(self, session_id):
+        return await self._run(
+            "SELECT * FROM commit_history WHERE session_id=:sid ORDER BY created_at",
+            {"sid": session_id},
+            many=True,
         )
 
     async def upsert_session(self, s):
@@ -141,11 +204,8 @@ class PostgresWorkspaceRepository:
         )
 
     async def list_actions(self, sid):
-        return await self._run(
-            "SELECT * FROM agent_actions WHERE session_id=:sid ORDER BY created_at",
-            {"sid": sid},
-            many=True,
-        )
+        commits = await self.list_commits(sid)
+        return [InMemoryWorkspaceRepository._legacy_action(c) for c in commits]
 
     async def upsert_artifact(self, a):
         a = {**a, "schema_payload": json.dumps(a["schema_payload"])}

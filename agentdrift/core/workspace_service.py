@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import re
-import uuid
-from datetime import UTC, datetime
 from typing import Any
 
+from agentdrift.core.task_execution_commit import FileChangeRecord, TaskExecutionCommit
 from agentdrift.core.workspace_repository import InMemoryWorkspaceRepository, WorkspaceRepository
 
 
@@ -42,48 +43,96 @@ class WorkspaceService:
         action_type: str = "edit",
         exported_contracts: dict[str, Any] | None = None,
         audit_status: str = "passed",
+        task_intent: str | None = None,
     ) -> dict[str, Any]:
         if action_type not in {"create", "edit", "audit", "refactor"}:
             raise ValueError("action_type must be create, edit, audit, or refactor")
         if action_type == "audit" and audit_status not in {"passed", "flagged"}:
             raise ValueError("audit_status must be passed or flagged")
-        action = await self.repository.record_action(
-            {
-                "id": str(uuid.uuid4()),
-                "session_id": session_id,
-                "agent_name": agent_name,
-                "action_type": action_type,
-                "files_touched": sorted(set(files_touched)),
-                "summary": summary,
-                "diff_hash": diff_hash,
-                "created_at": datetime.now(UTC).isoformat(),
-            }
+        change_type = {
+            "create": "added",
+            "edit": "modified",
+            "refactor": "modified",
+            "audit": "audited",
+        }[action_type]
+        commit = TaskExecutionCommit(
+            agent_id=agent_name,
+            task_intent=task_intent or summary,
+            execution_summary=summary,
+            files_touched=[
+                FileChangeRecord(path=path, change_type=change_type) for path in sorted(set(files_touched))
+            ],
+            exported_contracts=exported_contracts,
+            status="audited" if action_type == "audit" else "completed",
         )
-        for key, payload in (exported_contracts or {}).items():
+        action = await self.record_task_execution_commit(session_id, commit, diff_hash=diff_hash)
+        return self._commit_as_action(action, diff_hash)
+
+    async def record_task_execution_commit(
+        self,
+        session_id: str,
+        commit: TaskExecutionCommit,
+        *,
+        diff_hash: str | None = None,
+        audit_status: str = "passed",
+    ) -> dict[str, Any]:
+        if audit_status not in {"passed", "flagged"}:
+            raise ValueError("audit_status must be passed or flagged")
+        payload = commit.model_dump(mode="json")
+        payload["session_id"] = session_id
+        payload["diff_hash"] = diff_hash or hashlib.sha256(
+            json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        saved = await self.repository.record_commit(payload)
+        for key, contract in (commit.exported_contracts or {}).items():
             await self.repository.upsert_artifact(
                 {
                     "session_id": session_id,
                     "artifact_key": key,
-                    "producer_agent": agent_name,
-                    "schema_payload": payload,
-                    "status": "verified"
-                    if action_type == "audit" and audit_status == "passed"
-                    else "draft",
+                    "producer_agent": commit.agent_id,
+                    "schema_payload": contract,
+                    "status": "verified" if commit.status == "audited" else "draft",
                 }
             )
-        if action_type == "audit":
-            for path in action["files_touched"]:
-                await self.repository.record_audit(
-                    {
-                        "session_id": session_id,
-                        "file_path": path,
-                        "last_scanned_commit_or_hash": diff_hash,
-                        "scan_status": audit_status,
-                        "auditor_agent": agent_name,
-                    }
-                )
-        await self.repository.complete_task_claim(session_id, self._normalize_task(summary))
-        return action
+        if commit.status == "audited":
+            for record in commit.files_touched:
+                if record.change_type == "audited":
+                    await self.repository.record_audit(
+                        {
+                            "session_id": session_id,
+                            "file_path": record.path,
+                            "last_scanned_commit_or_hash": payload["diff_hash"],
+                            "scan_status": audit_status,
+                            "auditor_agent": commit.agent_id,
+                        }
+                    )
+        await self.repository.complete_task_claim(
+            session_id, self._normalize_task(commit.task_intent)
+        )
+        return {**saved, "diff_hash": payload["diff_hash"]}
+
+    @staticmethod
+    def _commit_as_action(commit: dict[str, Any], diff_hash: str) -> dict[str, Any]:
+        files = commit.get("files_touched", [])
+        paths = [f["path"] if isinstance(f, dict) else f.path for f in files]
+        first_change = files[0].get("change_type", "modified") if files and isinstance(files[0], dict) else "modified"
+        action_type = {
+            "added": "create",
+            "modified": "edit",
+            "deleted": "edit",
+            "audited": "audit",
+        }[first_change]
+        return {
+            **commit,
+            "id": commit["commit_id"],
+            "agent_name": commit["agent_id"],
+            "action_type": action_type,
+            "files_touched": paths,
+            "file_change_records": files,
+            "summary": commit["execution_summary"],
+            "diff_hash": diff_hash,
+            "created_at": commit["timestamp"],
+        }
 
     async def get_incremental_context(
         self,
@@ -92,7 +141,7 @@ class WorkspaceService:
         querying_agent: str = "unknown",
         query: str | None = None,
     ) -> dict[str, Any]:
-        actions = await self.repository.list_actions(session_id)
+        actions = await self._list_actions(session_id)
         artifacts = await self.repository.list_artifacts(session_id)
         workspace = await self.repository.get_session(session_id)
         scope_words = {
@@ -122,7 +171,11 @@ class WorkspaceService:
                     set(
                         re.findall(
                             r"[a-z0-9]+",
-                            a["summary"].lower() + " " + " ".join(a["files_touched"]).lower(),
+                            a.get("task_intent", a["summary"]).lower()
+                            + " "
+                            + a["summary"].lower()
+                            + " "
+                            + " ".join(a["files_touched"]).lower(),
                         )
                     )
                 )
@@ -152,6 +205,14 @@ class WorkspaceService:
                     "files": a["files_touched"],
                     "summary": a["summary"],
                     "hash": a["diff_hash"],
+                    "commit_id": a["id"],
+                    "agent_id": a["agent_name"],
+                    "task_intent": a.get("task_intent", a["summary"]),
+                    "execution_summary": a["summary"],
+                    "files_touched": a.get("file_change_records", []),
+                    "exported_contracts": a.get("exported_contracts"),
+                    "status": a.get("status", "completed"),
+                    "timestamp": a["created_at"],
                 }
                 for a in actions[:30]
             ],
@@ -172,7 +233,7 @@ class WorkspaceService:
     async def get_pending_audit_files(
         self, session_id: str, auditor_agent: str
     ) -> list[dict[str, Any]]:
-        actions = await self.repository.list_actions(session_id)
+        actions = await self._list_actions(session_id)
         audits = {a["file_path"]: a for a in await self.repository.list_audits(session_id)}
         latest: dict[str, dict[str, Any]] = {}
         for action in actions:
@@ -205,9 +266,9 @@ class WorkspaceService:
     ) -> dict[str, Any]:
         task = self._normalize_task(proposed_task)
         files = set(proposed_files)
-        for action in reversed(await self.repository.list_actions(session_id)):
+        for action in reversed(await self._list_actions(session_id)):
             overlap = files.intersection(action["files_touched"])
-            same_task = task == self._normalize_task(action["summary"])
+            same_task = task == self._normalize_task(action.get("task_intent", action["summary"]))
             if overlap and same_task:
                 return {
                     "status": "BLOCKED_REDUNDANT",
@@ -253,8 +314,12 @@ class WorkspaceService:
         )
 
     async def timeline(self, session_id: str) -> list[dict[str, Any]]:
-        actions = await self.repository.list_actions(session_id)
+        actions = await self._list_actions(session_id)
         return sorted(actions, key=lambda a: a.get("created_at", ""))
+
+    async def _list_actions(self, session_id: str) -> list[dict[str, Any]]:
+        commits = await self.repository.list_commits(session_id)
+        return [self._commit_as_action(commit, commit.get("diff_hash", "")) for commit in commits]
 
 
 def default_service() -> WorkspaceService:

@@ -463,7 +463,7 @@ def create_mcp(store=None):
                         log.debug("WAL setup failed (non-fatal): %s", exc)
         return active["store"]
 
-    mcp = FastMCP("agentdrift")
+    mcp = FastMCP("agentdrift-mcp")
 
     @mcp.tool()
     async def record_execution(

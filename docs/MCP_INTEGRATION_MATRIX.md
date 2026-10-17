@@ -9,11 +9,11 @@ linked vendor documentation when a client rejects a transport or config field.
 
 | AgentDrift mode | MCP transport | Endpoint | Storage | Use |
 |---|---|---|---|---|
-| Local | stdio | Spawn `mcp_server.py --transport stdio` | Local SQLite + LanceDB | Private, offline, one workstation |
+| Local | stdio | Run `agentdrift-mcp` | Local SQLite + LanceDB | Private, offline, one workstation |
 | Cloud (recommended remote) | Streamable HTTP | `/mcp` | Supabase Postgres + pgvector | Hosted and multi-client |
 | Cloud (legacy clients) | SSE | `/sse` (cloud server) or `/mcp` (standalone legacy server) | Supabase | Compatibility with SSE-only clients |
 
-The examples below assume the package is installed with `pip install agentdrift`
+The examples below assume the package is installed with `pip3 install agentdrift-mcp`
 for local stdio, or that a secured AgentDrift Cloud MCP deployment is available
 at `https://mcp.example.com/mcp`. Replace the URL and token with your own
 deployment. For local development from a checkout, replace `agentdrift-mcp`
@@ -65,20 +65,36 @@ Never put a Supabase service-role key in an editor or CLI config.
 
 ```bash
 # Local
-claude mcp add agentdrift -- agentdrift-mcp
+claude mcp add agentdrift-mcp -- agentdrift-mcp
 
 # Cloud Streamable HTTP
-claude mcp add --transport http agentdrift-cloud \
+claude mcp add --transport http agentdrift-mcp-cloud \
   https://mcp.example.com/mcp --header "Authorization: Bearer $AGENTDRIFT_MCP_TOKEN"
 
 # Cloud legacy SSE
-claude mcp add --transport sse agentdrift-sse \
+claude mcp add --transport sse agentdrift-mcp-sse \
   https://mcp.example.com/sse --header "Authorization: Bearer $AGENTDRIFT_MCP_TOKEN"
 ```
 
 Project `.mcp.json` entries can use `command`/`args` for stdio or `type: http`
 and `url` for cloud HTTP. Keep credentials in environment variables and out of
 committed project config. See [Claude Code MCP docs](https://docs.anthropic.com/en/docs/claude-code/mcp).
+
+### Claude Desktop
+
+Add this local stdio entry to `claude_desktop_config.json`, then restart Claude
+Desktop. No token or environment variables are needed for local use.
+
+```json
+{
+  "mcpServers": {
+    "agentdrift-mcp": {
+      "command": "agentdrift-mcp",
+      "args": []
+    }
+  }
+}
+```
 
 ### Cursor, Windsurf, Cline, and Roo Code
 
@@ -88,7 +104,7 @@ use an `mcpServers` object for local stdio entries:
 ```json
 {
   "mcpServers": {
-    "agentdrift": {
+    "agentdrift-mcp": {
       "command": "agentdrift-mcp",
       "args": [],
       "env": {}
@@ -105,7 +121,7 @@ current `mcp.json` format in its docs for your release.
 ```json
 {
   "mcpServers": {
-    "agentdrift-cloud": {
+    "agentdrift-mcp-cloud": {
       "type": "streamableHttp",
       "url": "https://mcp.example.com/mcp",
       "headers": {
@@ -128,7 +144,7 @@ endpoint configuration. Example:
 ```json
 {
   "mcpServers": {
-    "agentdrift-cloud": {
+    "agentdrift-mcp-cloud": {
       "serverUrl": "https://mcp.example.com/mcp",
       "headers": {
         "Authorization": "Bearer ${env:AGENTDRIFT_MCP_TOKEN}"
@@ -149,22 +165,22 @@ object. GitHub Copilot CLI uses `mcpServers` instead.
 ```json
 {
   "servers": {
-    "agentdrift": {
+    "agentdrift-mcp": {
       "type": "stdio",
       "command": "agentdrift-mcp",
       "args": []
     },
-    "agentdrift-cloud": {
+    "agentdrift-mcp-cloud": {
       "type": "http",
       "url": "https://mcp.example.com/mcp",
       "headers": {
-        "Authorization": "Bearer ${input:agentdrift-token}"
+        "Authorization": "Bearer ${input:agentdrift-mcp-token}"
       }
     }
   },
   "inputs": [
     {
-      "id": "agentdrift-token",
+      "id": "agentdrift-mcp-token",
       "type": "promptString",
       "description": "AgentDrift MCP access token",
       "password": true
@@ -179,10 +195,10 @@ Set `type` to `sse` and the URL to `/sse` for legacy SSE. See [VS Code MCP confi
 
 ```bash
 # Local stdio
-codex mcp add agentdrift -- agentdrift-mcp
+codex mcp add agentdrift-mcp -- agentdrift-mcp
 
 # Remote Streamable HTTP
-codex mcp add agentdrift-cloud --url https://mcp.example.com/mcp
+codex mcp add agentdrift-mcp-cloud --url https://mcp.example.com/mcp
 ```
 
 To add a bearer token, configure an `http_headers` value or a supported
@@ -192,10 +208,10 @@ environment-backed header in `~/.codex/config.toml`. Codex also supports
 ### Gemini CLI
 
 ```bash
-gemini mcp add agentdrift agentdrift-mcp
-gemini mcp add --transport http agentdrift-cloud https://mcp.example.com/mcp \
+gemini mcp add agentdrift-mcp agentdrift-mcp
+gemini mcp add --transport http agentdrift-mcp-cloud https://mcp.example.com/mcp \
   --header "Authorization: Bearer $AGENTDRIFT_MCP_TOKEN"
-gemini mcp add --transport sse agentdrift-sse https://mcp.example.com/sse \
+gemini mcp add --transport sse agentdrift-mcp-sse https://mcp.example.com/sse \
   --header "Authorization: Bearer $AGENTDRIFT_MCP_TOKEN"
 ```
 
@@ -208,12 +224,12 @@ Gemini CLI also accepts `command` (stdio), `httpUrl` (Streamable HTTP), and
 {
   "$schema": "https://opencode.ai/config.json",
   "mcp": {
-    "agentdrift": {
+    "agentdrift-mcp": {
       "type": "local",
       "command": ["agentdrift-mcp"],
       "enabled": true
     },
-    "agentdrift-cloud": {
+    "agentdrift-mcp-cloud": {
       "type": "remote",
       "url": "https://mcp.example.com/mcp",
       "oauth": false,
@@ -237,11 +253,11 @@ header or complete the OAuth flow when prompted. See [Zed MCP docs](https://zed.
 ```json
 {
   "context_servers": {
-    "agentdrift": {
+    "agentdrift-mcp": {
       "command": "agentdrift-mcp",
       "args": []
     },
-    "agentdrift-cloud": {
+    "agentdrift-mcp-cloud": {
       "url": "https://mcp.example.com/mcp",
       "headers": {
         "Authorization": "Bearer <token>"
@@ -260,7 +276,7 @@ name: AgentDrift
 version: 2.0.0
 schema: v1
 mcpServers:
-  - name: agentdrift
+  - name: agentdrift-mcp
     command: agentdrift-mcp
     args: []
 ```

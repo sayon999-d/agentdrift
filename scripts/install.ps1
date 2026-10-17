@@ -146,9 +146,9 @@ if ($isWindowsOS) {
     Write-Warning "For native macOS/Linux installation, use: curl -fsSL https://agentdrift.io/install.sh | bash"
 }
 
-$pkgSpec = "agentdrift"
+$pkgSpec = "agentdrift-mcp"
 if (-not [string]::IsNullOrWhiteSpace($Version) -and $Version -ne "latest") {
-    $pkgSpec = "agentdrift==$Version"
+    $pkgSpec = "agentdrift-mcp==$Version"
 }
 
 if ($DryRun) {
