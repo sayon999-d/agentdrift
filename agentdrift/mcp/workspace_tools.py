@@ -6,8 +6,8 @@ import hashlib
 import json
 from typing import Any
 
-from agentdrift.core.workspace_service import WorkspaceService, default_service
 from agentdrift.core.task_execution_commit import TaskExecutionCommit
+from agentdrift.core.workspace_service import WorkspaceService, default_service
 
 _service: WorkspaceService | None = None
 
