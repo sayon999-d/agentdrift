@@ -39,8 +39,8 @@ def render_section(title: str, commits: list[tuple[str, str]]) -> str:
 
 
 def main() -> None:
-    tag = os.environ["GITHUB_REF_NAME"]
-    current = git("rev-parse", tag)
+    tag = os.environ.get("RELEASE_TAG") or os.environ["GITHUB_REF_NAME"]
+    current = os.environ.get("GITHUB_SHA") or git("rev-parse", tag)
     previous_result = subprocess.run(
         ["git", "describe", "--tags", "--abbrev=0", "--match", "v*", f"{current}^"],
         check=False,
@@ -50,10 +50,10 @@ def main() -> None:
     previous = previous_result.stdout.strip() if previous_result.returncode == 0 else None
 
     if previous:
-        log_range = f"{previous}..{tag}"
+        log_range = f"{previous}..{current}"
         commits_output = git("log", "--no-merges", "-z", "--format=%H%x1f%s%x1f%b", log_range)
     else:
-        commits_output = git("log", "--no-merges", "-z", "--format=%H%x1f%s%x1f%b", tag)
+        commits_output = git("log", "--no-merges", "-z", "--format=%H%x1f%s%x1f%b", current)
 
     groups: dict[str, list[tuple[str, str]]] = {
         "features": [],
