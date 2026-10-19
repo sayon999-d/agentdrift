@@ -4,7 +4,7 @@ AgentDrift MCP 2.10.1 improves the first-run experience for local MCP server use
 
 ## Highlights
 
-- `agentdrift-mcp run` starts the MCP server with SSE transport on `0.0.0.0:8000` by default.
+- `agentdrift-mcp run` starts the MCP server with SSE transport on `127.0.0.1:8000` by default.
 - Running `agentdrift-mcp` without a subcommand uses the same server defaults.
 - Local runs without a configured token start in unauthenticated development mode and print the bound URL. An explicit `--token` or `AGENTDRIFT_MCP_TOKEN` enables bearer authentication.
 - Existing root-level server flags remain available for compatibility, including `--transport`, `--host`, `--port`, and `--allow-unauthenticated`.

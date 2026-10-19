@@ -40,6 +40,7 @@ import argparse
 import asyncio
 import hashlib
 import importlib.util
+import ipaddress
 import json
 import logging
 import math
@@ -669,7 +670,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     # root-level flags continue to work as well.
     args.command = "run"
     args.transport = getattr(args, "transport", "sse")
-    args.host = getattr(args, "host", "0.0.0.0")
+    args.host = getattr(args, "host", "127.0.0.1")
     args.port = getattr(args, "port", 8000)
     args.token = resolve_token(getattr(args, "token", None))
     allow_unauthenticated = getattr(args, "allow_unauthenticated", None)
@@ -677,16 +678,20 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         args.allow_unauthenticated = False
     elif args.token:
         args.allow_unauthenticated = False
-    elif allow_unauthenticated is None and args.host in {
-        "127.0.0.1",
-        "0.0.0.0",
-        "localhost",
-        "::1",
-    }:
+    elif allow_unauthenticated is None and _is_loopback_host(args.host):
         args.allow_unauthenticated = True
     else:
         args.allow_unauthenticated = bool(allow_unauthenticated)
     return args
+
+
+def _is_loopback_host(host: str) -> bool:
+    if host.lower() == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
 
 
 def main(argv: list[str] | None = None) -> None:
