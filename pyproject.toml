@@ -1,6 +1,6 @@
 [project]
 name = "agentdrift-mcp"
-version = "2.10.0"
+version = "2.10.1"
 description = "Coding-agent runtime supervisor, CLI, and Model Context Protocol server"
 readme = "README.md"
 requires-python = ">=3.12"

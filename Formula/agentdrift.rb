@@ -3,7 +3,7 @@ class Agentdrift < Formula
 
   desc "Runtime supervisor and circuit breaker for autonomous coding agents"
   homepage "https://github.com/agentdrift/agentdrift"
-  url "https://files.pythonhosted.org/packages/source/a/agentdrift/agentdrift-2.10.0.tar.gz"
+  url "https://files.pythonhosted.org/packages/source/a/agentdrift/agentdrift-2.10.1.tar.gz"
   sha256 "REPLACE_WITH_ACTUAL_TAR_GZ_SHA256"
   license "MIT"
   head "https://github.com/agentdrift/agentdrift.git", branch: "main"

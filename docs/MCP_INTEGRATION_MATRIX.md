@@ -273,7 +273,7 @@ Continue stores MCP definitions in YAML. Example local config:
 
 ```yaml
 name: AgentDrift
-version: 2.10.0
+version: 2.10.1
 schema: v1
 mcpServers:
   - name: agentdrift-mcp

@@ -39,12 +39,14 @@ from __future__ import annotations
 import argparse
 import asyncio
 import hashlib
+import importlib.util
 import json
 import logging
 import math
 import os
 import re
 import secrets
+import sys
 import threading
 import time
 from typing import Any
@@ -629,18 +631,79 @@ def _http_app(mcp, transport: str, token: str | None):
     return Starlette(routes=routes, lifespan=lifespan)
 
 
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse the server CLI, retaining the historical root-level options."""
+    parser = argparse.ArgumentParser(
+        prog="agentdrift-mcp",
+        description="AgentDrift MCP Runtime Supervisor",
+    )
+
+    # SUPPRESS lets root options remain usable without clobbering values set
+    # by the run subcommand when argparse processes its defaults.
+    def add_options(target, *, defaults: bool) -> None:
+        default = argparse.SUPPRESS if not defaults else None
+        target.add_argument("--transport", choices=["stdio", "http", "sse"], default=default)
+        target.add_argument("--host", default=default)
+        target.add_argument("--port", type=int, default=default)
+        target.add_argument(
+            "--token", default=default, help="Bearer token (or AGENTDRIFT_MCP_TOKEN)"
+        )
+        target.add_argument(
+            "--allow-unauthenticated",
+            action="store_true",
+            default=default,
+            help="Serve HTTP/SSE without a token (local dev only)",
+        )
+
+    add_options(parser, defaults=False)
+    subparsers = parser.add_subparsers(dest="command")
+    run_parser = subparsers.add_parser("run", help="Start the MCP server with sensible defaults")
+    add_options(run_parser, defaults=False)
+    subparsers.add_parser("doctor", help="Check system prerequisites and connectivity")
+
+    args = parser.parse_args(argv)
+    if args.command == "doctor":
+        return args
+
+    # A bare invocation and `run` both boot local SSE. Explicit historical
+    # root-level flags continue to work as well.
+    args.command = "run"
+    args.transport = getattr(args, "transport", "sse")
+    args.host = getattr(args, "host", "0.0.0.0")
+    args.port = getattr(args, "port", 8000)
+    args.token = resolve_token(getattr(args, "token", None))
+    allow_unauthenticated = getattr(args, "allow_unauthenticated", None)
+    if args.transport == "stdio":
+        args.allow_unauthenticated = False
+    elif args.token:
+        args.allow_unauthenticated = False
+    elif allow_unauthenticated is None and args.host in {
+        "127.0.0.1",
+        "0.0.0.0",
+        "localhost",
+        "::1",
+    }:
+        args.allow_unauthenticated = True
+    else:
+        args.allow_unauthenticated = bool(allow_unauthenticated)
+    return args
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="AgentDrift MCP server")
-    parser.add_argument("--transport", choices=["stdio", "http", "sse"], default="stdio")
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8931)
-    parser.add_argument("--token", default=None, help="Bearer token (or AGENTDRIFT_MCP_TOKEN)")
-    parser.add_argument(
-        "--allow-unauthenticated",
-        action="store_true",
-        help="Serve HTTP/SSE without a token (local dev only)",
-    )
-    args = parser.parse_args(argv)
+    args = parse_args(argv)
+
+    if args.command == "doctor":
+        missing = [
+            name for name in ("fastmcp", "uvicorn") if importlib.util.find_spec(name) is None
+        ]
+        if missing:
+            print(
+                f"[agentdrift] Missing runtime dependencies: {', '.join(missing)}", file=sys.stderr
+            )
+            raise SystemExit(1)
+        print("[agentdrift] MCP runtime prerequisites are available.")
+        return
 
     if args.transport == "stdio":
         # Warm the store handle in the background so the first tool call is
@@ -651,14 +714,18 @@ def main(argv: list[str] | None = None) -> None:
         mcp.run(transport="stdio")
         return
 
-    token = resolve_token(args.token)
+    token = args.token
     if not token and not args.allow_unauthenticated:
         parser.error(
             "remote transports need --token (or AGENTDRIFT_MCP_TOKEN), "
             "or pass --allow-unauthenticated for local dev"
         )
     if not token:
-        log.warning("serving %s WITHOUT authentication (local dev only)", args.transport)
+        print(
+            f"[agentdrift] Starting in local dev mode (unauthenticated) "
+            f"on http://{args.host}:{args.port}",
+            file=sys.stderr,
+        )
     import uvicorn  # lazy: stdio clients never pay this import
 
     from agentdrift.storage.factory import get_store as _get_store
