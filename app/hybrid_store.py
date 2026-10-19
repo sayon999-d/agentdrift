@@ -4,8 +4,9 @@ Layout (created automatically):
     <data_dir>/agentdrift.db        SQLite: sessions, executions, drift_detections
     <data_dir>/vectors.lance/       LanceDB: execution_vectors(execution_id, session_id, vector[384])
 
-``<data_dir>`` defaults to ``~/.agentdrift`` and can be overridden with the
-``AGENTDRIFT_DATA_DIR`` env var (used by the test-suite for isolation).
+``<data_dir>`` defaults to ``./.agentdrift``. Set ``AGENTDRIFT_DIR`` to
+override the directory, ``AGENTDRIFT_DB_PATH`` to override the SQLite file,
+or use ``--global`` with the MCP CLI to store data under ``~/.agentdrift``.
 
 All public methods are ``async``; the underlying sqlite3 / LanceDB calls are
 synchronous and run via ``asyncio.to_thread`` behind a lock so the FastAPI
@@ -40,7 +41,6 @@ except Exception:
 EMBEDDING_DIM = 384
 VECTOR_TABLE = "execution_vectors"
 HEALTH_DB_MODE = "hybrid (sqlite + lancedb)"
-HEALTH_STORAGE_PATH = "~/.agentdrift"
 
 DDL = """
 CREATE TABLE IF NOT EXISTS sessions (
@@ -81,11 +81,52 @@ CREATE TABLE IF NOT EXISTS drift_detections (
 """
 
 
+def get_storage_dir(use_global: bool = False) -> Path:
+    """Resolve and create the directory holding local AgentDrift data."""
+    override = os.getenv("AGENTDRIFT_DIR", "").strip()
+    legacy_override = os.getenv("AGENTDRIFT_DATA_DIR", "").strip()
+    database_override = os.getenv("AGENTDRIFT_DB_PATH", "").strip()
+    if override:
+        target_dir = Path(override).expanduser().resolve()
+    elif legacy_override:
+        target_dir = Path(legacy_override).expanduser().resolve()
+    elif database_override:
+        target_dir = Path(database_override).expanduser().resolve().parent
+    elif use_global:
+        target_dir = Path.home() / ".agentdrift"
+    else:
+        target_dir = (Path.cwd() / ".agentdrift").resolve()
+
+    target_dir.mkdir(parents=True, exist_ok=True)
+    _ensure_local_gitignore()
+    return target_dir
+
+
 def data_dir() -> Path:
-    override = os.getenv("AGENTDRIFT_DATA_DIR", "").strip()
-    base = Path(override).expanduser() if override else Path("~/.agentdrift").expanduser()
-    base.mkdir(parents=True, exist_ok=True)
-    return base
+    """Backward-compatible alias for the default storage directory."""
+    return get_storage_dir()
+
+
+def _database_path(directory: Path) -> Path:
+    override = os.getenv("AGENTDRIFT_DB_PATH", "").strip()
+    path = Path(override).expanduser().resolve() if override else directory / "agentdrift.db"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _ensure_local_gitignore() -> None:
+    local_data = Path.cwd() / ".agentdrift"
+    if not local_data.exists():
+        return
+    gitignore = Path.cwd() / ".gitignore"
+    entry = ".agentdrift/"
+    existing = gitignore.read_text(encoding="utf-8") if gitignore.exists() else ""
+    if any(line.strip() in {".agentdrift", ".agentdrift/"} for line in existing.splitlines()):
+        return
+    with gitignore.open("a", encoding="utf-8") as stream:
+        if existing and not existing.endswith("\n"):
+            stream.write("\n")
+        stream.write(f"{entry}\n")
 
 
 def _jdumps(obj) -> str:
@@ -110,11 +151,11 @@ def _ts(dt: float | None) -> datetime | None:
 class HybridStore:
     """SQLite + LanceDB persistence. Create via :func:`get_hybrid_store`."""
 
-    def __init__(self, directory: Path) -> None:
+    def __init__(self, directory: Path, db_path: Path | None = None) -> None:
         if lancedb is None or pa is None:
             raise RuntimeError("lancedb + pyarrow are required for the hybrid store")
         self.directory = directory
-        self.db_path = directory / "agentdrift.db"
+        self.db_path = db_path or directory / "agentdrift.db"
         self.vectors_path = directory / "vectors.lance"
         self._lock = threading.Lock()
         self._sql = sqlite3.connect(str(self.db_path), check_same_thread=False)
@@ -688,29 +729,31 @@ class HybridStore:
 
 
 _instance: HybridStore | None = None
-_instance_dir: str | None = None
+_instance_key: tuple[str, str] | None = None
 
 
 def get_hybrid_store() -> HybridStore:
-    """Lazy singleton (path re-read when AGENTDRIFT_DATA_DIR changes, e.g. tests)."""
-    global _instance, _instance_dir
-    directory = data_dir()
-    if _instance is None or _instance_dir != str(directory):
+    """Lazy singleton (paths are re-read when storage configuration changes)."""
+    global _instance, _instance_key
+    directory = get_storage_dir()
+    db_path = _database_path(directory)
+    instance_key = (str(directory), str(db_path))
+    if _instance is None or _instance_key != instance_key:
         if _instance is not None:
             try:
                 _instance.close()
             except Exception:
                 pass
-        _instance = HybridStore(directory)
-        _instance_dir = str(directory)
+        _instance = HybridStore(directory, db_path)
+        _instance_key = instance_key
     return _instance
 
 
 def reset_hybrid_store() -> None:
-    global _instance, _instance_dir
+    global _instance, _instance_key
     if _instance is not None:
         try:
             _instance.close()
         except Exception:
             pass
-    _instance, _instance_dir = None, None
+    _instance, _instance_key = None, None

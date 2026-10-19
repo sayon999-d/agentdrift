@@ -1,6 +1,6 @@
 """Storage abstraction: one interface, two backends.
 
-- Local (default)  -> :class:`LocalHybridStore` (SQLite + LanceDB, ``~/.agentdrift/``)
+- Local (default)  -> :class:`LocalHybridStore` (SQLite + LanceDB, ``./.agentdrift/``)
 - Cloud (URL set)  -> :class:`SupabasePgVectorStore` (Supabase Postgres + pgvector)
 
 Selection: :func:`get_store` returns the Supabase backend when

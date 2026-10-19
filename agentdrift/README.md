@@ -20,8 +20,10 @@ from agentdrift.storage import get_store
 store = get_store()  # local SQLite + LanceDB unless cloud URL is configured
 ```
 
-The store interface is asynchronous. Local mode writes below `~/.agentdrift`
-unless `AGENTDRIFT_DATA_DIR` is set. Set `SUPABASE_DATABASE_URL` or
+The store interface is asynchronous. Local mode writes below `./.agentdrift`
+unless `AGENTDRIFT_DIR` or `AGENTDRIFT_DATA_DIR` is set. Use `--global` to
+store local data under `~/.agentdrift`, or set `AGENTDRIFT_DB_PATH` to choose a
+specific SQLite file. Set `SUPABASE_DATABASE_URL` or
 `AGENTDRIFT_DATABASE_URL` to select the Supabase PostgreSQL/pgvector adapter.
 
 ## Internal map

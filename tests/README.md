@@ -11,7 +11,7 @@ python -m pytest tests/ -q
 ## Test isolation
 
 `conftest.py` sets `AGENTDRIFT_DATA_DIR` to a temporary directory so the local
-hybrid store does not touch `~/.agentdrift`. API tests use FastAPI's test client
+hybrid store does not touch the project or user data directories. API tests use FastAPI's test client
 and in-process state; storage tests use local objects and monkeypatch backend
 selection where needed. Keep tests independent of real Supabase credentials
 and network services.

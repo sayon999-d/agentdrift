@@ -32,7 +32,7 @@ files. See `.env.example` for a starting template.
 | Mode | Selection | Persistence | Notes |
 |---|---|---|---|
 | Process memory | Fallback when persistence is unavailable | None; lost on restart | Useful for isolated tests/demo, not production retention |
-| Local hybrid | Default when local persistence dependencies are available | SQLite + LanceDB under `~/.agentdrift` | `AGENTDRIFT_DATA_DIR` overrides the directory |
+| Local hybrid | Default when local persistence dependencies are available | SQLite + LanceDB under `./.agentdrift` | `AGENTDRIFT_DIR` overrides the directory; MCP CLI `--global` selects `~/.agentdrift` |
 | PostgreSQL | Daemon `DATABASE_URL` or `SUPABASE_DB_URL` | PostgreSQL via SQLAlchemy/asyncpg | Apply schema migration before use |
 | Supabase MCP backend | MCP factory selects when `SUPABASE_DATABASE_URL` or `AGENTDRIFT_DATABASE_URL` is set | Postgres + pgvector | Separate MCP storage adapter and schema from daemon settings |
 

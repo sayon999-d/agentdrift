@@ -18,7 +18,7 @@ const installCommands: Record<InstallTab, string> = {
 const HERO_INSTALL_CMD = 'uvx --from agentdrift-mcp agentdrift-mcp'
 
 const featureCards = [
-  { num: '01', icon: <Layers3 size={18} strokeWidth={1.5} className="text-white" />, title: 'Sub-millisecond\nlocal store', body: 'SQLite + LanceDB live in ~/.agentdrift. Every turn is indexed on-device. No account, no network, no waiting.', tag: '100% OFFLINE' },
+  { num: '01', icon: <Layers3 size={18} strokeWidth={1.5} className="text-white" />, title: 'Sub-millisecond\nlocal store', body: 'SQLite + LanceDB live in ./.agentdrift by default. Every turn is indexed on-device. No account, no network, no waiting.', tag: '100% OFFLINE' },
   { num: '02', icon: <ShieldAlert size={18} strokeWidth={1.5} className="text-white" />, title: 'Zero-token\ncircuit breaker', body: 'Catch the loop before the next model call. Stop retry storms in Claude Code, Cline, OpenCode, and Codex.', tag: 'STOP BEFORE SPEND' },
   { num: '03', icon: <Radio size={18} strokeWidth={1.5} className="text-white" />, title: 'Dual ingestion', body: 'Observe from a native terminal hook or connect a remote Cloud MCP over SSE / Streamable HTTP.', tag: 'STDIO ↔ CLOUD' },
   { num: '04', icon: <Cpu size={18} strokeWidth={1.5} className="text-white" />, title: 'Gate 1 + Gate 2 NLI', body: 'Check structural envelopes first. Then verify the action still aligns with the agent’s original goal.', tag: 'STRUCTURE + INTENT' },
@@ -186,7 +186,7 @@ export default function App() {
               <div className="diagram-line"><i /><span>stdio / tool call</span><i /></div>
               <div className="diagram-node sentinel-node"><span className="node-icon"><Zap size={17} /></span><b>AGENTDRIFT</b><small>local MCP + loop sentinel</small></div>
               <div className="diagram-line"><i /><span>embedded · zero network</span><i /></div>
-              <div className="diagram-node storage-node"><span className="node-icon"><Layers3 size={17} /></span><b>SQLITE + LANCEDB</b><small>~/.agentdrift / on device</small></div>
+              <div className="diagram-node storage-node"><span className="node-icon"><Layers3 size={17} /></span><b>SQLITE + LANCEDB</b><small>./.agentdrift / on device</small></div>
             </> : <>
               <div className="diagram-node agent-node"><span className="node-icon"><Command size={17} /></span><b>TEAM AGENTS</b><small>multiple clients / identities</small></div>
               <div className="diagram-line"><i /><span>Streamable HTTP / SSE</span><i /></div>

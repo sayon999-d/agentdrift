@@ -26,7 +26,7 @@ def _split_payload(payload: dict[str, Any]) -> tuple[dict, dict, str | None]:
 
 
 class LocalHybridStore(BaseStore):
-    """SQLite (relational) + LanceDB (384-d vectors) at ``~/.agentdrift/``."""
+    """SQLite + LanceDB in the project-local ``.agentdrift/`` directory by default."""
 
     def __init__(self, data_dir: str | None = None) -> None:
         import os

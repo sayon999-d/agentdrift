@@ -249,7 +249,7 @@ def _health_payload() -> dict:
     db_ok = False
     mode = "in-memory"
     db_mode = "memory"
-    storage_path = "~/.agentdrift"
+    storage_path = os.path.join(os.getcwd(), ".agentdrift")
     if store.use_db():
         try:
             factory = database.get_session_factory()

@@ -140,7 +140,7 @@ automatically — Supabase when `SUPABASE_DATABASE_URL` (or
 
 | Mode | Backend | Data | Entry |
 |---|---|---|---|
-| Local (CLI / stdio) | SQLite + LanceDB | `~/.agentdrift/` (offline) | `agentdrift …`, `agentdrift-mcp` |
+| Local (CLI / stdio) | SQLite + LanceDB | `./.agentdrift/` (offline) | `agentdrift …`, `agentdrift-mcp` |
 | Cloud MCP (remote) | Supabase Postgres + pgvector | Supabase project | `mcp_server.py --transport http --token …` |
 
 ### Phase 1 — Supabase migration (Cloud MCP)

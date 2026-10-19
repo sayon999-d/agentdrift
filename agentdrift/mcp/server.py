@@ -1,7 +1,7 @@
 """AgentDrift MCP server — expose drift detection to external agents.
 
 Two runtimes:
-  Local Mode  (stdio)            embedded SQLite + LanceDB at ~/.agentdrift/
+  Local Mode  (stdio)            embedded SQLite + LanceDB at ./.agentdrift/
   Cloud Mode  (HTTP/SSE remote)  Supabase Postgres + pgvector (needs
                                  SUPABASE_DATABASE_URL) with Bearer-token auth.
 
@@ -647,6 +647,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         target.add_argument("--host", default=default)
         target.add_argument("--port", type=int, default=default)
         target.add_argument(
+            "--global",
+            dest="use_global",
+            action="store_true",
+            default=default,
+            help="Store local data in ~/.agentdrift instead of the project",
+        )
+        target.add_argument(
             "--token", default=default, help="Bearer token (or AGENTDRIFT_MCP_TOKEN)"
         )
         target.add_argument(
@@ -672,6 +679,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     args.transport = getattr(args, "transport", "sse")
     args.host = getattr(args, "host", "127.0.0.1")
     args.port = getattr(args, "port", 8000)
+    args.use_global = getattr(args, "use_global", False)
     args.token = resolve_token(getattr(args, "token", None))
     allow_unauthenticated = getattr(args, "allow_unauthenticated", None)
     if args.transport == "stdio":
@@ -709,6 +717,12 @@ def main(argv: list[str] | None = None) -> None:
             raise SystemExit(1)
         print("[agentdrift] MCP runtime prerequisites are available.")
         return
+
+    if args.use_global and not any(
+        os.getenv(name, "").strip()
+        for name in ("AGENTDRIFT_DIR", "AGENTDRIFT_DATA_DIR", "AGENTDRIFT_DB_PATH")
+    ):
+        os.environ["AGENTDRIFT_DATA_DIR"] = os.path.join(os.path.expanduser("~"), ".agentdrift")
 
     if args.transport == "stdio":
         # Warm the store handle in the background so the first tool call is

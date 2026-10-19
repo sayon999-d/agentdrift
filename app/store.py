@@ -1,5 +1,5 @@
 """Storage layer: Supabase Postgres when DATABASE_URL is set, else hybrid
-embedded (SQLite + LanceDB at ~/.agentdrift), else in-memory fallback.
+embedded (SQLite + LanceDB at ./.agentdrift), else in-memory fallback.
 """
 
 from __future__ import annotations
@@ -412,15 +412,13 @@ def get_hybrid():
 
 def hybrid_info() -> dict | None:
     try:
-        from app.hybrid_store import HEALTH_DB_MODE, HEALTH_STORAGE_PATH
+        from app.hybrid_store import HEALTH_DB_MODE
     except Exception:
         return None
-    if get_hybrid() is None:
+    hybrid = get_hybrid()
+    if hybrid is None:
         return None
-    import os as _os
-
-    override = _os.getenv("AGENTDRIFT_DATA_DIR", "").strip()
-    return {"mode": HEALTH_DB_MODE, "storage_path": override or HEALTH_STORAGE_PATH}
+    return {"mode": HEALTH_DB_MODE, "storage_path": str(hybrid.directory)}
 
 
 async def create_session(data: dict) -> dict:

@@ -74,7 +74,7 @@ USAGE:
     powershell -ExecutionPolicy Bypass -File .\install.ps1 [OPTIONS]
 
 PARAMETERS:
-    -Version <string>       Specific version of AgentDrift to install (e.g. 2.10.1)
+    -Version <string>       Specific version of AgentDrift to install (e.g. 2.10.2)
     -InstallDir <string>    Directory for dedicated virtual environment
                             (default: `$env:LOCALAPPDATA\agentdrift)
     -BinDir <string>        Directory where launcher shims are placed

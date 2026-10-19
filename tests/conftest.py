@@ -1,4 +1,4 @@
-"""Isolate the hybrid engine per test run (never touch the real ~/.agentdrift)."""
+"""Isolate the hybrid engine per test run in a temporary directory."""
 
 import os
 import tempfile

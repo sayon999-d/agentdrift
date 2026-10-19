@@ -7,7 +7,9 @@ than replace the relational execution history.
 ## Local hybrid engine
 
 The local engine in `app/hybrid_store.py` creates this layout under
-`~/.agentdrift` by default. Set `AGENTDRIFT_DATA_DIR` to change the base path.
+`./.agentdrift` by default. Set `AGENTDRIFT_DIR` (or the legacy
+`AGENTDRIFT_DATA_DIR`) to change the base path. The MCP CLI `--global` flag
+uses `~/.agentdrift`; `AGENTDRIFT_DB_PATH` selects a specific SQLite file.
 
 ```text
 <data_dir>/
